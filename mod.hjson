@@ -4,7 +4,7 @@
   author: "MohamedGonem"
   version: "1.0.0"
   minGameVersion: "159"
-  repo: "local"
+  repo: "MohamedGonem/ore-gens"
   description:
     '''
     Blocks that extract and synthesize ore from airborne trace elements,
@@ -13,7 +13,7 @@
     Four tiers per ore:
     - Small Powered (2x2): fast, needs power, moderate cost.
     - Small Unpowered (2x2): slow, no power, expensive to build.
-    - Water-fed (3x3): fast, needs water, no power.
+    - Liquid-fed (3x3): fast, needs water (ozone on Erekir), no power.
     - Cryofluid-fed (3x3): fastest, needs power + cryofluid.
 
     Ores: copper, lead, coal, titanium, scrap, thorium, sand (Serpulo),
