@@ -19,7 +19,9 @@
     Ores: copper, lead, coal, titanium, scrap, thorium, sand (Serpulo),
     beryllium, tungsten (Erekir).
 
-    Global research upgrades: Speed I-III, Capacity I-III, Output I-II, Efficiency I-II.
+    Every tier is gated behind a 3-step research quest (12 milestones per ore)
+    with escalating, ore-specific costs. Upgrades are gated by research too:
+    Speed I-III, Capacity I-III, Output I-II, Efficiency I-II.
     Animated: powered, liquid and cryo tiers glow and spin while running.
     '''
 }

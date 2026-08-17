@@ -183,6 +183,7 @@ function applyDrawer(block, style) {
 function buildChain(ore, liquidTier, planet) {
   const f = flavor[ore.id];
   const chain = {
+    id: ore.id,
     name: ore.name,
     powered: makeCrafter(ore.id + "-gen",
       ore.item, ore.powered.craftTime, 2, ore.powered.req, ore.powered.power, null,
@@ -235,35 +236,10 @@ for (let i = 0; i < allGenerators.length; i++) {
 }
 
 // ---- research tree ----
-// Chain per ore off the pneumatic drill node in the Serpulo tree:
-// pneumatic-drill -> <ore>-gen -> <ore>-gen-unpowered -> <ore>-gen-water -> <ore>-gen-cryo
-// Erekir chains anchor to plasmaBore instead.
+// Chain per ore off the pneumatic drill node in the Serpulo tree; Erekir chains
+// anchor to plasmaBore. Each tier is gated by 3 research milestones (see below).
 const drillNode = TechTree.all.find(t => t.content === Blocks.pneumaticDrill);
 const erekirNode = TechTree.all.find(t => t.content === Blocks.plasmaBore);
-if (drillNode != null) {
-  for (let i = 0; i < chains.length; i++) {
-    const c = chains[i];
-    if (!c.powered.shownPlanets.contains(Planets.serpulo)) continue;
-    const n1 = new TechTree.TechNode(drillNode, c.powered, c.powered.researchRequirements());
-    const n2 = new TechTree.TechNode(n1, c.unpowered, c.unpowered.researchRequirements());
-    const n3 = new TechTree.TechNode(n2, c.water, c.water.researchRequirements());
-    new TechTree.TechNode(n3, c.cryo, c.cryo.researchRequirements());
-  }
-} else {
-  Log.err("ore-gens: could not find pneumatic drill tech node; research not attached.");
-}
-if (erekirNode != null) {
-  for (let i = 0; i < chains.length; i++) {
-    const c = chains[i];
-    if (!c.powered.shownPlanets.contains(Planets.erekir)) continue;
-    const n1 = new TechTree.TechNode(erekirNode, c.powered, c.powered.researchRequirements());
-    const n2 = new TechTree.TechNode(n1, c.unpowered, c.unpowered.researchRequirements());
-    const n3 = new TechTree.TechNode(n2, c.water, c.water.researchRequirements());
-    new TechTree.TechNode(n3, c.cryo, c.cryo.researchRequirements());
-  }
-} else {
-  Log.err("ore-gens: could not find plasmaBore tech node; Erekir research not attached.");
-}
 
 // ---- global research upgrades ----
 // Hidden upgrade blocks act as research nodes. When unlocked they scale all generators.
@@ -290,6 +266,22 @@ function makeUpgrade(name, title, description, parent, cost) {
   return { block: up, node: node };
 }
 
+// a research milestone: a hidden block used purely as a tech-tree gate.
+// It unlocks nothing by itself; the generator tier is the capstone after it.
+function makeMilestone(name, title, description, parent, cost) {
+  const m = extend(GenericCrafter, name, {});
+  m.requirements = ItemStack.empty;
+  m.buildVisibility = BuildVisibility.hidden;
+  m.category = Category.production;
+  m.shownPlanets.add(Planets.serpulo);
+  m.shownPlanets.add(Planets.erekir);
+  m.size = 1;
+  m.localizedName = title;
+  m.description = description;
+  const node = new TechTree.TechNode(parent, m, cost);
+  return { block: m, node: node };
+}
+
 function makeUpgradeChain(prefix, parent, titles, descs, costs) {
   const blocks = [];
   const nodes = [];
@@ -303,25 +295,180 @@ function makeUpgradeChain(prefix, parent, titles, descs, costs) {
   return { blocks: blocks, nodes: nodes, lastNode: lastNode };
 }
 
-if (drillNode != null) {
-  const costs = [ItemStack.with(Items.copper, 300), ItemStack.with(Items.copper, 600, Items.lead, 400), ItemStack.with(Items.copper, 1200, Items.lead, 800, Items.titanium, 400)];
-  const titles = ["Generator Speed I", "Generator Speed II", "Generator Speed III"];
-  const descs = ["All generators produce 10% faster.", "All generators produce 10% faster.", "All generators produce 10% faster."];
-  const speedMade = makeUpgradeChain("generator-speed", drillNode, titles, descs, costs);
-  speedUpgrades.push.apply(speedUpgrades, speedMade.blocks);
-  const capTitles = ["Generator Capacity I", "Generator Capacity II", "Generator Capacity III"];
-  const capDescs = ["All generators hold 10 more items.", "All generators hold 10 more items.", "All generators hold 10 more items."];
-  capacityUpgrades.push.apply(capacityUpgrades, makeUpgradeChain("generator-capacity", drillNode, capTitles, capDescs, costs).blocks);
+// per-ore research cost scaling (milestones carry the cost; blocks are cheap capstones)
+const oreScale = {
+  copper: 1.0, lead: 1.1, coal: 1.2, titanium: 1.6, scrap: 0.9,
+  thorium: 2.2, sand: 0.8, beryllium: 1.4, tungsten: 2.0,
+};
 
-  // output chain hangs off Speed I; efficiency chain off Speed III (late-game)
-  const outCosts = [ItemStack.with(Items.copper, 1500, Items.titanium, 900), ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600)];
-  const outTitles = ["Generator Output I", "Generator Output II"];
-  const outDescs = ["All generators double their output.", "All generators double their output again."];
-  outputUpgrades.push.apply(outputUpgrades, makeUpgradeChain("generator-output", speedMade.nodes[0], outTitles, outDescs, outCosts).blocks);
-  const effCosts = [ItemStack.with(Items.copper, 1500, Items.titanium, 900), ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600)];
-  const effTitles = ["Generator Efficiency I", "Generator Efficiency II"];
-  const effDescs = ["Powered generators use 15% less power.", "Powered generators use 15% less power again."];
-  efficiencyUpgrades.push.apply(efficiencyUpgrades, makeUpgradeChain("generator-efficiency", speedMade.lastNode, effTitles, effDescs, effCosts).blocks);
+// milestone base amounts per tier (primary cost, multiplied by ore scale, rounded to 50)
+const milestoneTiers = [
+  { base: [150, 300, 500] },    // tier 1 (powered)
+  { base: [700, 1000, 1400] },  // tier 2 (unpowered)
+  { base: [1800, 2400, 3200] }, // tier 3 (water/ozone)
+  { base: [4500, 6000, 8000] }, // tier 4 (cryo)
+];
+
+// milestone titles per tier, per step. tier 1 = powered, 2 = unpowered, 3 = liquid, 4 = cryo.
+const milestoneTitles = [
+  ["Atmospheric Analysis", "Ion Capture Theory", "Electrostatic Prototype"],
+  ["Passive Condensation", "Settling Chamber", "Mechanical Condenser"],
+  ["Filtration Membranes", "Solvent Recovery", "Liquid Extraction Cell"],
+  ["Cryogenic Theory", "Freeze Bath Design", "Cryo Synthesis Unit"],
+];
+
+const tierNames = ["Powered", "Passive", "Liquid", "Cryo"];
+
+// cost helper: primary amount = round(base * scale, 50); secondaries scale with tier depth.
+// returns an ItemStack array (same shape TechNode/requirements already validated with).
+function milestoneCost(ore, tierIndex, stepIndex) {
+  const scale = oreScale[ore.id] || 1.0;
+  const base = milestoneTiers[tierIndex].base[stepIndex];
+  const primary = Math.round((base * scale) / 50) * 50;
+  const flat = [ore.item, primary];
+  // secondaries per tier: tier 2 graphite, tier 3 rare metal, tier 4 deep metal.
+  // Serpulo: graphite / titanium / thorium. Erekir: graphite / tungsten / oxide (tungsten skips to oxide).
+  if (tierIndex >= 1) flat.push(Items.graphite, Math.round(primary * 0.3 / 25) * 25);
+  if (tierIndex >= 2) {
+    const rare = ore.id === "beryllium" ? Items.tungsten : Items.titanium;
+    flat.push(rare, Math.round(primary * 0.15 / 25) * 25);
+  }
+  if (tierIndex >= 3) {
+    const deep = ore.id === "tungsten" ? Items.oxide : Items.thorium;
+    flat.push(deep, Math.round(primary * 0.08 / 25) * 25);
+  }
+  return ItemStack.with.apply(null, flat);
+}
+
+const oreMilestoneBlocks = [];
+// attach research gates per ore chain, before the tier unlocks
+if (drillNode != null) {
+  for (let i = 0; i < chains.length; i++) {
+    const c = chains[i];
+    if (!c.powered.shownPlanets.contains(Planets.serpulo)) continue;
+    // build 3 steps, then attach the powered tier, 3 steps, unpowered, etc.
+    const f = flavor[c.id];
+    const tiers = [c.powered, c.unpowered, c.water, c.cryo];
+    let cur = drillNode;
+    for (let t = 0; t < 4; t++) {
+      for (let s = 0; s < 3; s++) {
+        const title = c.name + " Generator: " + milestoneTitles[t][s];
+        const desc = "Research milestone for the " + tierNames[t] + " " + c.name.toLowerCase() + " generator.\n" +
+          (f ? f[["powered", "unpowered", "water", "cryo"][t]] : "") + "\n" +
+          "Unlocks the " + tierNames[t].toLowerCase() + " tier.";
+        const made = makeMilestone(c.id + "-research-" + (t + 1) + "-" + (s + 1), title, desc, cur, milestoneCost({ id: c.id, item: c.powered.outputItem.item }, t, s));
+        oreMilestoneBlocks.push(made.block);
+        cur = made.node;
+      }
+      const tierNode = new TechTree.TechNode(cur, tiers[t], tiers[t].researchRequirements());
+      cur = tierNode;
+    }
+  }
+} else {
+  Log.err("ore-gens: could not find pneumatic drill tech node; research not attached.");
+}
+
+if (erekirNode != null) {
+  for (let i = 0; i < chains.length; i++) {
+    const c = chains[i];
+    if (!c.powered.shownPlanets.contains(Planets.erekir)) continue;
+    const f = flavor[c.id];
+    const tiers = [c.powered, c.unpowered, c.water, c.cryo];
+    let cur = erekirNode;
+    for (let t = 0; t < 4; t++) {
+      for (let s = 0; s < 3; s++) {
+        const title = c.name + " Generator: " + milestoneTitles[t][s];
+        const desc = "Research milestone for the " + tierNames[t] + " " + c.name.toLowerCase() + " generator.\n" +
+          (f ? f[["powered", "unpowered", "water", "cryo"][t]] : "") + "\n" +
+          "Unlocks the " + tierNames[t].toLowerCase() + " tier.";
+        const made = makeMilestone(c.id + "-research-" + (t + 1) + "-" + (s + 1), title, desc, cur, milestoneCost({ id: c.id, item: c.powered.outputItem.item }, t, s));
+        oreMilestoneBlocks.push(made.block);
+        cur = made.node;
+      }
+      const tierNode = new TechTree.TechNode(cur, tiers[t], tiers[t].researchRequirements());
+      cur = tierNode;
+    }
+  }
+} else {
+  Log.err("ore-gens: could not find plasmaBore tech node; Erekir research not attached.");
+}
+
+// ---- upgrade research gates ----
+// Each upgrade tier is preceded by a themed research node.
+const upgradeResearchBlocks = [];
+function makeUpgradeResearchChain(prefix, parent, titles, descs, costs) {
+  let cur = parent;
+  const blocks = [];
+  for (let i = 0; i < titles.length; i++) {
+    const m = makeMilestone(prefix + "-" + (i + 1), titles[i], descs[i], cur, costs[i]);
+    blocks.push(m.block);
+    upgradeResearchBlocks.push(m.block);
+    cur = m.node;
+  }
+  return { blocks: blocks, lastNode: cur };
+}
+
+if (drillNode != null) {
+  // speed chain: research gates between each tier
+  const speedCosts = [
+    ItemStack.with(Items.copper, 500, Items.lead, 300),
+    ItemStack.with(Items.copper, 1000, Items.lead, 600, Items.titanium, 200),
+    ItemStack.with(Items.copper, 1500, Items.lead, 900, Items.titanium, 300),
+  ];
+  const speedResearch = makeUpgradeResearchChain("upgrade-research-speed", drillNode,
+    ["Generator Speed Research I", "Generator Speed Research II", "Generator Speed Research III"],
+    ["Study high-yield atmospheric capture techniques.", "Refine synthesis throughput and energy efficiency.", "Unlock the final generator speed tier."],
+    speedCosts);
+  const speedMade = makeUpgradeChain("generator-speed", speedResearch.lastNode,
+    ["Generator Speed I", "Generator Speed II", "Generator Speed III"],
+    ["All generators produce 10% faster.", "All generators produce 10% faster.", "All generators produce 10% faster."],
+    [ItemStack.with(Items.copper, 300), ItemStack.with(Items.copper, 600, Items.lead, 400), ItemStack.with(Items.copper, 1200, Items.lead, 800, Items.titanium, 400)]);
+  speedUpgrades.push.apply(speedUpgrades, speedMade.blocks);
+
+  // capacity chain
+  const capCosts = [
+    ItemStack.with(Items.copper, 500, Items.lead, 300),
+    ItemStack.with(Items.copper, 1000, Items.lead, 600, Items.titanium, 200),
+    ItemStack.with(Items.copper, 1500, Items.lead, 900, Items.titanium, 300),
+  ];
+  const capResearch = makeUpgradeResearchChain("upgrade-research-capacity", drillNode,
+    ["Generator Capacity Research I", "Generator Capacity Research II", "Generator Capacity Research III"],
+    ["Study stockpile and buffer design.", "Engineer larger internal storage bays.", "Unlock the final generator capacity tier."],
+    capCosts);
+  const capMade = makeUpgradeChain("generator-capacity", capResearch.lastNode,
+    ["Generator Capacity I", "Generator Capacity II", "Generator Capacity III"],
+    ["All generators hold 10 more items.", "All generators hold 10 more items.", "All generators hold 10 more items."],
+    [ItemStack.with(Items.copper, 300), ItemStack.with(Items.copper, 600, Items.lead, 400), ItemStack.with(Items.copper, 1200, Items.lead, 800, Items.titanium, 400)]);
+  capacityUpgrades.push.apply(capacityUpgrades, capMade.blocks);
+
+  // output chain hangs off Speed I research node end; efficiency off Speed III (late-game)
+  const outCosts = [
+    ItemStack.with(Items.copper, 1500, Items.titanium, 900),
+    ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600),
+  ];
+  const outResearch = makeUpgradeResearchChain("upgrade-research-output", speedMade.nodes[0],
+    ["Generator Output Research I", "Generator Output Research II"],
+    ["Develop multi-output crystallization.", "Refine density to double output again."],
+    outCosts);
+  const outMade = makeUpgradeChain("generator-output", outResearch.lastNode,
+    ["Generator Output I", "Generator Output II"],
+    ["All generators double their output.", "All generators double their output again."],
+    [ItemStack.with(Items.copper, 1500, Items.titanium, 900), ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600)]);
+  outputUpgrades.push.apply(outputUpgrades, outMade.blocks);
+
+  const effCosts = [
+    ItemStack.with(Items.copper, 1500, Items.titanium, 900),
+    ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600),
+  ];
+  const effResearch = makeUpgradeResearchChain("upgrade-research-efficiency", speedMade.lastNode,
+    ["Generator Efficiency Research I", "Generator Efficiency Research II"],
+    ["Study power-efficient synthesis.", "Refine energy recovery systems."],
+    effCosts);
+  const effMade = makeUpgradeChain("generator-efficiency", effResearch.lastNode,
+    ["Generator Efficiency I", "Generator Efficiency II"],
+    ["Powered generators use 15% less power.", "Powered generators use 15% less power again."],
+    effCosts);
+  efficiencyUpgrades.push.apply(efficiencyUpgrades, effMade.blocks);
 }
 
 // recompute stats from base values; idempotent, safe to call on load and on research
@@ -364,8 +511,10 @@ function applyUpgrades() {
 
 Events.on(EventType.ContentInitEvent, () => applyUpgrades());
 Events.on(EventType.ResearchEvent, e => {
+  // names are namespaced (e.g. "ore-gens-generator-speed-1"); match the suffix.
+  // milestone and research blocks never contain "-generator-" so they are ignored.
   const name = e.content.name;
-  if (name != null && (name.indexOf("generator-") === 0)) {
+  if (name != null && name.indexOf("-generator-") !== -1) {
     applyUpgrades();
   }
 });

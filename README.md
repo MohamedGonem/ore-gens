@@ -20,9 +20,13 @@ Every ore has four generator tiers:
 
 Each ore uses a distinct real-world-inspired extraction process, so no two generators are alike on paper - electrowinning, gravity precipitation, carbon scrubbing, plasma reduction, magnetic separation, irradiation, cyclonic sieving and more.
 
+## Research milestones
+
+Every tier is gated behind a **3-step research quest** - hidden nodes in the tech tree that unlock nothing on their own but advance your progress along the chain. Each ore has 12 milestones (3 per tier), with costs that escalate by tier and scale with the ore's rarity. Spend the ore itself plus process reagents (graphite, titanium, thorium on Serpulo; tungsten, oxide on Erekir) to push further.
+
 ## Global research upgrades
 
-Hidden research nodes that boost every generator:
+Hidden research nodes that boost every generator, each gated behind its own research step:
 
 - **Speed I-III** - 10% faster each level
 - **Capacity I-III** - +10 item capacity each level
