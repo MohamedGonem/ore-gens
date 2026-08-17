@@ -2,7 +2,7 @@
   name: "ore-gens"
   displayName: "Ore Generators"
   author: "MohamedGonem"
-  version: "1.0.0"
+  version: "1.1.0"
   minGameVersion: "159"
   repo: "MohamedGonem/ore-gens"
   description:
