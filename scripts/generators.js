@@ -252,7 +252,9 @@ const capacityStep = 10;    // each level: itemCapacity += 10
 const outputStep = 2;       // each level: output stack *= 2
 const efficiencyStep = 0.85; // each level: power usage *= 0.85 (-15%)
 
-function makeUpgrade(name, title, description, parent, cost) {
+// creates hidden upgrade content (no tech node); the same block is linked into
+// both the Serpulo and Erekir trees (the engine keeps a techNodes Seq per content).
+function makeUpgrade(name, title, description) {
   const up = extend(GenericCrafter, name, {});
   up.requirements = ItemStack.empty;
   up.buildVisibility = BuildVisibility.hidden;
@@ -262,8 +264,7 @@ function makeUpgrade(name, title, description, parent, cost) {
   up.size = 1;
   up.localizedName = title;
   up.description = description;
-  const node = new TechTree.TechNode(parent, up, cost);
-  return { block: up, node: node };
+  return up;
 }
 
 // a research milestone: a hidden block used purely as a tech-tree gate.
@@ -282,17 +283,17 @@ function makeMilestone(name, title, description, parent, cost) {
   return { block: m, node: node };
 }
 
-function makeUpgradeChain(prefix, parent, titles, descs, costs) {
-  const blocks = [];
+// build an interleaved chain: parent -> gate1 -> upgrade1 -> gate2 -> upgrade2 -> ...
+// on a single planet's tree. gates[i]/ups[i] are content blocks; costs[i] are gate costs.
+function makeUpgradePairChain(parent, gates, ups, gateCosts, upCosts) {
+  let cur = parent;
   const nodes = [];
-  let lastNode = parent;
-  for (let i = 0; i < titles.length; i++) {
-    const m = makeUpgrade(prefix + "-" + (i + 1), titles[i], descs[i], lastNode, costs[i]);
-    lastNode = m.node;
-    blocks.push(m.block);
-    nodes.push(m.node);
+  for (let i = 0; i < ups.length; i++) {
+    cur = new TechTree.TechNode(cur, gates[i], gateCosts[i]);
+    cur = new TechTree.TechNode(cur, ups[i], upCosts[i]);
+    nodes.push(cur);
   }
-  return { blocks: blocks, nodes: nodes, lastNode: lastNode };
+  return nodes; // nodes[i] = tech node of upgrade i
 }
 
 // per-ore research cost scaling (milestones carry the cost; blocks are cheap capstones)
@@ -394,81 +395,113 @@ if (erekirNode != null) {
 }
 
 // ---- upgrade research gates ----
-// Each upgrade tier is preceded by a themed research node.
-const upgradeResearchBlocks = [];
-function makeUpgradeResearchChain(prefix, parent, titles, descs, costs) {
-  let cur = parent;
-  const blocks = [];
-  for (let i = 0; i < titles.length; i++) {
-    const m = makeMilestone(prefix + "-" + (i + 1), titles[i], descs[i], cur, costs[i]);
-    blocks.push(m.block);
-    upgradeResearchBlocks.push(m.block);
-    cur = m.node;
+// Each upgrade tier is gated by a themed research node. Content is created once and
+// linked into BOTH planet trees (Serpulo under pneumatic drill, Erekir under plasma
+// bore) so the same upgrade blocks are reachable and unlockable on either planet.
+
+// a hidden content-only gate block (no tech node); linked via makeUpgradePairChain.
+function makeGate(name, title, description) {
+  const m = extend(GenericCrafter, name, {});
+  m.requirements = ItemStack.empty;
+  m.buildVisibility = BuildVisibility.hidden;
+  m.category = Category.production;
+  m.shownPlanets.add(Planets.serpulo);
+  m.shownPlanets.add(Planets.erekir);
+  m.size = 1;
+  m.localizedName = title;
+  m.description = description;
+  return m;
+}
+
+// define a full upgrade line: 3 gate+upgrade pairs. Returns the content arrays.
+function defineUpgradeLine(gatePrefix, upPrefix, gateTitles, gateDescs, upTitles, upDescs) {
+  const gates = [];
+  const ups = [];
+  for (let i = 0; i < upTitles.length; i++) {
+    gates.push(makeGate(gatePrefix + "-" + (i + 1), gateTitles[i], gateDescs[i]));
+    ups.push(makeUpgrade(upPrefix + "-" + (i + 1), upTitles[i], upDescs[i]));
   }
-  return { blocks: blocks, lastNode: cur };
+  return { gates: gates, ups: ups };
+}
+
+const speedLine = defineUpgradeLine("upgrade-research-speed", "generator-speed",
+  ["Generator Speed Research I", "Generator Speed Research II", "Generator Speed Research III"],
+  ["Study high-yield atmospheric capture techniques.", "Refine synthesis throughput and energy efficiency.", "Unlock the final generator speed tier."],
+  ["Generator Speed I", "Generator Speed II", "Generator Speed III"],
+  ["All generators produce 10% faster.", "All generators produce 10% faster.", "All generators produce 10% faster."]);
+const speedGateCosts = [
+  ItemStack.with(Items.copper, 500, Items.lead, 300),
+  ItemStack.with(Items.copper, 1000, Items.lead, 600, Items.titanium, 200),
+  ItemStack.with(Items.copper, 1500, Items.lead, 900, Items.titanium, 300),
+];
+const speedUpCosts = [
+  ItemStack.with(Items.copper, 300), ItemStack.with(Items.copper, 600, Items.lead, 400), ItemStack.with(Items.copper, 1200, Items.lead, 800, Items.titanium, 400),
+];
+
+const capLine = defineUpgradeLine("upgrade-research-capacity", "generator-capacity",
+  ["Generator Capacity Research I", "Generator Capacity Research II", "Generator Capacity Research III"],
+  ["Study stockpile and buffer design.", "Engineer larger internal storage bays.", "Unlock the final generator capacity tier."],
+  ["Generator Capacity I", "Generator Capacity II", "Generator Capacity III"],
+  ["All generators hold 10 more items.", "All generators hold 10 more items.", "All generators hold 10 more items."]);
+const capGateCosts = [
+  ItemStack.with(Items.copper, 500, Items.lead, 300),
+  ItemStack.with(Items.copper, 1000, Items.lead, 600, Items.titanium, 200),
+  ItemStack.with(Items.copper, 1500, Items.lead, 900, Items.titanium, 300),
+];
+const capUpCosts = [
+  ItemStack.with(Items.copper, 300), ItemStack.with(Items.copper, 600, Items.lead, 400), ItemStack.with(Items.copper, 1200, Items.lead, 800, Items.titanium, 400),
+];
+
+const outLine = defineUpgradeLine("upgrade-research-output", "generator-output",
+  ["Generator Output Research I", "Generator Output Research II"],
+  ["Develop multi-output crystallization.", "Refine density to double output again."],
+  ["Generator Output I", "Generator Output II"],
+  ["All generators double their output.", "All generators double their output again."]);
+const outGateCosts = [
+  ItemStack.with(Items.copper, 1500, Items.titanium, 900),
+  ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600),
+];
+const outUpCosts = [
+  ItemStack.with(Items.copper, 1500, Items.titanium, 900), ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600),
+];
+
+const effLine = defineUpgradeLine("upgrade-research-efficiency", "generator-efficiency",
+  ["Generator Efficiency Research I", "Generator Efficiency Research II"],
+  ["Study power-efficient synthesis.", "Refine energy recovery systems."],
+  ["Generator Efficiency I", "Generator Efficiency II"],
+  ["Powered generators use 15% less power.", "Powered generators use 15% less power again."]);
+const effGateCosts = [
+  ItemStack.with(Items.copper, 1500, Items.titanium, 900),
+  ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600),
+];
+const effUpCosts = [
+  ItemStack.with(Items.copper, 1500, Items.titanium, 900), ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600),
+];
+
+speedUpgrades.push.apply(speedUpgrades, speedLine.ups);
+capacityUpgrades.push.apply(capacityUpgrades, capLine.ups);
+outputUpgrades.push.apply(outputUpgrades, outLine.ups);
+efficiencyUpgrades.push.apply(efficiencyUpgrades, effLine.ups);
+
+// link each line into a planet tree, interleaving gate and upgrade:
+// parent -> gate1 -> upgrade1 -> gate2 -> upgrade2 -> gate3 -> upgrade3
+// returns the array of upgrade tech nodes (index i = upgrade i).
+function linkUpgradeLine(root, line, gateCosts, upCosts) {
+  return makeUpgradePairChain(root, line.gates, line.ups, gateCosts, upCosts);
 }
 
 if (drillNode != null) {
-  // speed chain: research gates between each tier
-  const speedCosts = [
-    ItemStack.with(Items.copper, 500, Items.lead, 300),
-    ItemStack.with(Items.copper, 1000, Items.lead, 600, Items.titanium, 200),
-    ItemStack.with(Items.copper, 1500, Items.lead, 900, Items.titanium, 300),
-  ];
-  const speedResearch = makeUpgradeResearchChain("upgrade-research-speed", drillNode,
-    ["Generator Speed Research I", "Generator Speed Research II", "Generator Speed Research III"],
-    ["Study high-yield atmospheric capture techniques.", "Refine synthesis throughput and energy efficiency.", "Unlock the final generator speed tier."],
-    speedCosts);
-  const speedMade = makeUpgradeChain("generator-speed", speedResearch.lastNode,
-    ["Generator Speed I", "Generator Speed II", "Generator Speed III"],
-    ["All generators produce 10% faster.", "All generators produce 10% faster.", "All generators produce 10% faster."],
-    [ItemStack.with(Items.copper, 300), ItemStack.with(Items.copper, 600, Items.lead, 400), ItemStack.with(Items.copper, 1200, Items.lead, 800, Items.titanium, 400)]);
-  speedUpgrades.push.apply(speedUpgrades, speedMade.blocks);
-
-  // capacity chain
-  const capCosts = [
-    ItemStack.with(Items.copper, 500, Items.lead, 300),
-    ItemStack.with(Items.copper, 1000, Items.lead, 600, Items.titanium, 200),
-    ItemStack.with(Items.copper, 1500, Items.lead, 900, Items.titanium, 300),
-  ];
-  const capResearch = makeUpgradeResearchChain("upgrade-research-capacity", drillNode,
-    ["Generator Capacity Research I", "Generator Capacity Research II", "Generator Capacity Research III"],
-    ["Study stockpile and buffer design.", "Engineer larger internal storage bays.", "Unlock the final generator capacity tier."],
-    capCosts);
-  const capMade = makeUpgradeChain("generator-capacity", capResearch.lastNode,
-    ["Generator Capacity I", "Generator Capacity II", "Generator Capacity III"],
-    ["All generators hold 10 more items.", "All generators hold 10 more items.", "All generators hold 10 more items."],
-    [ItemStack.with(Items.copper, 300), ItemStack.with(Items.copper, 600, Items.lead, 400), ItemStack.with(Items.copper, 1200, Items.lead, 800, Items.titanium, 400)]);
-  capacityUpgrades.push.apply(capacityUpgrades, capMade.blocks);
-
-  // output chain hangs off Speed I research node end; efficiency off Speed III (late-game)
-  const outCosts = [
-    ItemStack.with(Items.copper, 1500, Items.titanium, 900),
-    ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600),
-  ];
-  const outResearch = makeUpgradeResearchChain("upgrade-research-output", speedMade.nodes[0],
-    ["Generator Output Research I", "Generator Output Research II"],
-    ["Develop multi-output crystallization.", "Refine density to double output again."],
-    outCosts);
-  const outMade = makeUpgradeChain("generator-output", outResearch.lastNode,
-    ["Generator Output I", "Generator Output II"],
-    ["All generators double their output.", "All generators double their output again."],
-    [ItemStack.with(Items.copper, 1500, Items.titanium, 900), ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600)]);
-  outputUpgrades.push.apply(outputUpgrades, outMade.blocks);
-
-  const effCosts = [
-    ItemStack.with(Items.copper, 1500, Items.titanium, 900),
-    ItemStack.with(Items.copper, 3000, Items.titanium, 1800, Items.thorium, 600),
-  ];
-  const effResearch = makeUpgradeResearchChain("upgrade-research-efficiency", speedMade.lastNode,
-    ["Generator Efficiency Research I", "Generator Efficiency Research II"],
-    ["Study power-efficient synthesis.", "Refine energy recovery systems."],
-    effCosts);
-  const effMade = makeUpgradeChain("generator-efficiency", effResearch.lastNode,
-    ["Generator Efficiency I", "Generator Efficiency II"],
-    ["Powered generators use 15% less power.", "Powered generators use 15% less power again."],
-    effCosts);
-  efficiencyUpgrades.push.apply(efficiencyUpgrades, effMade.blocks);
+  const speedNodes = linkUpgradeLine(drillNode, speedLine, speedGateCosts, speedUpCosts);
+  linkUpgradeLine(drillNode, capLine, capGateCosts, capUpCosts);
+  // output hangs off Speed I; efficiency off Speed III (both on the same speed chain)
+  linkUpgradeLine(speedNodes[0], outLine, outGateCosts, outUpCosts);
+  linkUpgradeLine(speedNodes[speedLine.ups.length - 1], effLine, effGateCosts, effUpCosts);
+}
+if (erekirNode != null) {
+  const speedNodes = linkUpgradeLine(erekirNode, speedLine, speedGateCosts, speedUpCosts);
+  linkUpgradeLine(erekirNode, capLine, capGateCosts, capUpCosts);
+  linkUpgradeLine(speedNodes[0], outLine, outGateCosts, outUpCosts);
+  linkUpgradeLine(speedNodes[speedLine.ups.length - 1], effLine, effGateCosts, effUpCosts);
 }
 
 // recompute stats from base values; idempotent, safe to call on load and on research
