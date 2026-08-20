@@ -750,13 +750,16 @@ if (erekirNode != null) {
 }
 
 // ---- liquid generator research chains ----
-// parent -> milestone1 -> milestone2 -> milestone3 -> liquid generator
+// Milestone chains are built inline (module scope) exactly like the per-ore
+// chains; the chainResearch helper below is kept for reference only.
 function chainResearch(root, names, titles, desc, costs, capstone) {
   let cur = root;
-  for (let i = 0; i < 3; i++) {
-    const made = makeMilestone(names[i], titles[i], desc + " (Step " + (i + 1) + " of 3).", cur, costs[i]);
+  let i = 0;
+  while (i < 3) {
+    var made = makeMilestone(names[i], titles[i], desc + " (Step " + (i + 1) + " of 3).", cur, costs[i]);
     oreMilestoneBlocks.push(made.block);
     cur = made.node;
+    i++;
   }
   return new TechTree.TechNode(cur, capstone, capstone.researchRequirements());
 }
@@ -796,61 +799,80 @@ if (drillNode != null) {
   // cheap coal-from-scrap refiner, available early (Ground Zero)
   new TechTree.TechNode(drillNode, scrapCoalExtractor, ItemStack.with(Items.copper, 150, Items.lead, 100, Items.scrap, 75));
   // liquid producers stack one chain under the next (water -> cryofluid -> slag),
-  // like the per-ore chains; synthesizers do the same.
+  // using the exact same inline milestone-loop pattern as the per-ore chains.
   let cur = drillNode;
-  cur = chainResearch(cur,
-    ["water-research-1", "water-research-2", "water-research-3"],
+  const wTitles = [
     ["Water Extraction Theory", "Condensation Cycles", "Atmospheric Capture Unit"],
-    "Research milestone for the Water Generator.", waterCosts, waterGen);
-  cur = chainResearch(cur,
-    ["cryofluid-research-1", "cryofluid-research-2", "cryofluid-research-3"],
     ["Cryofluid Chilling", "Cryo Bath Design", "Cryofluid Synthesis Unit"],
-    "Research milestone for the Cryofluid Generator.", cryoCosts, cryofluidGen);
-  chainResearch(cur,
-    ["slag-research-1", "slag-research-2", "slag-research-3"],
     ["Magma Channeling", "Crucible Metallurgy", "Molten Slag Vessel"],
-    "Research milestone for the Slag Generator.", slagCosts, slagGen);
+  ];
+  const wNames = [["water-research-1", "water-research-2", "water-research-3"],
+                  ["cryofluid-research-1", "cryofluid-research-2", "cryofluid-research-3"],
+                  ["slag-research-1", "slag-research-2", "slag-research-3"]];
+  const wCosts = [waterCosts, cryoCosts, slagCosts];
+  const wGens = [waterGen, cryofluidGen, slagGen];
+  const wDesc = ["Water Generator", "Cryofluid Generator", "Slag Generator"];
+  for (let c = 0; c < 3; c++) {
+    for (let s = 0; s < 3; s++) {
+      const made = makeMilestone(wNames[c][s], wTitles[c][s], "Research milestone for the " + wDesc[c] + ". (Step " + (s + 1) + " of 3).", cur, wCosts[c][s]);
+      oreMilestoneBlocks.push(made.block);
+      cur = made.node;
+    }
+    cur = new TechTree.TechNode(cur, wGens[c], wGens[c].researchRequirements());
+  }
 
-  // synthesizer chains (Serpulo only)
+  // synthesizer chains (Serpulo only), same inline pattern
   let s = drillNode;
-  s = chainResearch(s,
-    ["synthesizer-research-1-1", "synthesizer-research-1-2", "synthesizer-research-1-3"],
+  const sTitles = [
     ["Feedstock Blending", "Multiplex Casting", "Basic Synthesizer Frame"],
-    "Research milestone for the Basic Ore Synthesizer.",
+    ["Refining Catalysts", "Titanium Reduction", "Refined Synthesizer Frame"],
+    ["Thorium Enrichment", "Plastanium Casting", "Advanced Synthesizer Frame"],
+  ];
+  const sCosts = [
     [ItemStack.with(Items.copper, 1200, Items.lead, 900),
      ItemStack.with(Items.copper, 2000, Items.lead, 1500, Items.graphite, 400),
-     ItemStack.with(Items.copper, 3200, Items.lead, 2400, Items.graphite, 700, Items.silicon, 300)], basicSynth);
-  s = chainResearch(s,
-    ["synthesizer-research-2-1", "synthesizer-research-2-2", "synthesizer-research-2-3"],
-    ["Refining Catalysts", "Titanium Reduction", "Refined Synthesizer Frame"],
-    "Research milestone for the Refined Ore Synthesizer.",
+     ItemStack.with(Items.copper, 3200, Items.lead, 2400, Items.graphite, 700, Items.silicon, 300)],
     [ItemStack.with(Items.silicon, 400, Items.graphite, 350, Items.copper, 600),
      ItemStack.with(Items.silicon, 700, Items.graphite, 600, Items.copper, 1000, Items.titanium, 200),
-     ItemStack.with(Items.silicon, 1100, Items.graphite, 900, Items.titanium, 350, Items.plastanium, 150)], refinedSynth);
-  chainResearch(s,
-    ["synthesizer-research-3-1", "synthesizer-research-3-2", "synthesizer-research-3-3"],
-    ["Thorium Enrichment", "Plastanium Casting", "Advanced Synthesizer Frame"],
-    "Research milestone for the Advanced Ore Synthesizer.",
+     ItemStack.with(Items.silicon, 1100, Items.graphite, 900, Items.titanium, 350, Items.plastanium, 150)],
     [ItemStack.with(Items.titanium, 400, Items.plastanium, 250, Items.silicon, 500, Items.thorium, 150),
      ItemStack.with(Items.titanium, 700, Items.plastanium, 450, Items.silicon, 900, Items.thorium, 250, Items.phaseFabric, 100),
-     ItemStack.with(Items.titanium, 1100, Items.plastanium, 700, Items.silicon, 1400, Items.thorium, 400, Items.phaseFabric, 180)], advancedSynth);
+     ItemStack.with(Items.titanium, 1100, Items.plastanium, 700, Items.silicon, 1400, Items.thorium, 400, Items.phaseFabric, 180)],
+  ];
+  const sGens = [basicSynth, refinedSynth, advancedSynth];
+  const sDesc = ["Basic Ore Synthesizer", "Refined Ore Synthesizer", "Advanced Ore Synthesizer"];
+  for (let c = 0; c < 3; c++) {
+    for (let i = 0; i < 3; i++) {
+      const made = makeMilestone("synthesizer-research-" + (c + 1) + "-" + (i + 1), sTitles[c][i], "Research milestone for the " + sDesc[c] + ". (Step " + (i + 1) + " of 3).", s, sCosts[c][i]);
+      oreMilestoneBlocks.push(made.block);
+      s = made.node;
+    }
+    s = new TechTree.TechNode(s, sGens[c], sGens[c].researchRequirements());
+  }
 }
 
 if (erekirNode != null) {
-  // same stacking as Serpulo: ozone -> cryofluid -> gallium chains.
+  // same stacking as Serpulo: ozone -> cryofluid -> gallium, inline milestone loop.
   let cur = erekirNode;
-  cur = chainResearch(cur,
-    ["ozone-research-1", "ozone-research-2", "ozone-research-3"],
+  const eTitles = [
     ["Ozone Discharge", "Corona Cycling", "Atmospheric Ozone Unit"],
-    "Research milestone for the Ozone Generator.", ozoneCosts, ozoneGen);
-  cur = chainResearch(cur,
-    ["erekir-cryofluid-research-1", "erekir-cryofluid-research-2", "erekir-cryofluid-research-3"],
     ["Cryofluid Chilling", "Cryo Bath Design", "Cryofluid Synthesis Unit"],
-    "Research milestone for the Cryofluid Generator.", erekirCryoCosts, cryofluidGenErekir);
-  chainResearch(cur,
-    ["gallium-research-1", "gallium-research-2", "gallium-research-3"],
     ["Gallium Compression", "Magma Pressure", "Molten Gallium Vessel"],
-    "Research milestone for the Gallium Generator.", galliumCosts, galliumGen);
+  ];
+  const eNames = [["ozone-research-1", "ozone-research-2", "ozone-research-3"],
+                  ["erekir-cryofluid-research-1", "erekir-cryofluid-research-2", "erekir-cryofluid-research-3"],
+                  ["gallium-research-1", "gallium-research-2", "gallium-research-3"]];
+  const eCosts = [ozoneCosts, erekirCryoCosts, galliumCosts];
+  const eGens = [ozoneGen, cryofluidGenErekir, galliumGen];
+  const eDesc = ["Ozone Generator", "Cryofluid Generator", "Gallium Generator"];
+  for (let c = 0; c < 3; c++) {
+    for (let i = 0; i < 3; i++) {
+      const made = makeMilestone(eNames[c][i], eTitles[c][i], "Research milestone for the " + eDesc[c] + ". (Step " + (i + 1) + " of 3).", cur, eCosts[c][i]);
+      oreMilestoneBlocks.push(made.block);
+      cur = made.node;
+    }
+    cur = new TechTree.TechNode(cur, eGens[c], eGens[c].researchRequirements());
+  }
 }
 
 // ---- upgrade research gates ----
