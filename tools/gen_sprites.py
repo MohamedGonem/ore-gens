@@ -340,6 +340,13 @@ if __name__ == "__main__":
             note(f"{ore}-gen{s}.png")
         note(f"{ore}-gen-unpowered.png")
 
+    print("Scrap coal extractor (2x2, 64px):")
+    save_block("scrap-coal-extractor", 64,
+               dict(frame=("#4a4a52", "#26262b"), panel=("#2c2c26", "#181813"),
+                    gem=("#e8e4d8", "#7a7a70"), accent="#88909a"),
+               "unpowered", overlays=False)
+    note("scrap-coal-extractor.png")
+
     print("Ore liquid/cryo generators (3x3, 96px):")
     for ore, th in ORE.items():
         for variant, sfx in (("water", "-water"), ("cryo", "-cryo")):

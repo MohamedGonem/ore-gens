@@ -190,6 +190,55 @@ function makeCrafter(name, craftTime, size, req, power, liquid, consumeItems, lo
   return block;
 }
 
+// weighted random single-output crafter: consumes the recipe once, then emits
+// exactly ONE of the listed items chosen by weight (used by the synthesizers).
+function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, localizedName, description, planet, entries, capacity) {
+  let totalWeight = 0;
+  const stacks = [];
+  for (let i = 0; i < entries.length; i++) {
+    totalWeight += entries[i].weight;
+    stacks.push(new ItemStack(entries[i].item, entries[i].amount));
+  }
+  const block = extend(GenericCrafter, name, {
+    craft() {
+      this.consume();
+      let r = Math.random() * totalWeight;
+      let chosen = entries[entries.length - 1];
+      for (let i = 0; i < entries.length; i++) {
+        r -= entries[i].weight;
+        if (r <= 0) {
+          chosen = entries[i];
+          break;
+        }
+      }
+      this.items.add(chosen.item, chosen.amount);
+      if (this.wasVisible) this.craftEffect.at(this.x, this.y, this.rotate);
+    }
+  });
+  block.outputItems = stacks;
+  block.requirements = makeRequirements(req);
+  block.craftTime = craftTime;
+  block.size = size;
+  block.category = Category.production;
+  block.buildVisibility = BuildVisibility.shown;
+  block.shownPlanets.add(planet);
+  block.itemCapacity = capacity || 30;
+  block.health = 200 * size;
+  block.localizedName = localizedName;
+  block.description = description;
+  block.warmupSpeed = 0.04;
+  block.researchCostMultiplier = 0.1;
+  if (consumeItems != null) {
+    for (let i = 0; i < consumeItems.length; i++) {
+      block.consumeItem(consumeItems[i][0], consumeItems[i][1]);
+    }
+  }
+  if (power != null) block.consumePower(power);
+  applyAmbiance(block, "synthesizer");
+  applyDrawer(block, "synthesizer");
+  return block;
+}
+
 // tier identity through sound + particles
 function applyAmbiance(block, style) {
   if (style === "powered" || style === "synthesizer") {
@@ -334,34 +383,66 @@ const galliumGen = makeLiquidProducer("gallium-gen", "Gallium Generator",
 allGenerators.push(waterGen, cryofluidGen, slagGen, ozoneGen, cryofluidGenErekir, galliumGen);
 
 // ---- multi-ore variant synthesizers (Serpulo only) ----
-const basicSynth = makeCrafter("basic-synthesizer", 120, 4,
+// Each cycle emits ONE output chosen by weight (not a bulk of all outputs).
+const basicSynth = makeRandomCrafter("basic-synthesizer", 120, 4,
   [[Items.copper, 1500], [Items.lead, 1200], [Items.graphite, 300]],
-  0.15, null, null,
+  0.15, null,
   "Basic Ore Synthesizer",
   "Synthesizes basic ores from a single heavy feedstock bed.\n" +
-  "Outputs 30% copper, 30% lead, 20% scrap, 10% coal and 10% sand per cycle. Huge copper and lead cost.",
-  "synthesizer", Planets.serpulo,
-  { items: [new ItemStack(Items.copper, 3), new ItemStack(Items.lead, 3), new ItemStack(Items.scrap, 2), new ItemStack(Items.coal, 1), new ItemStack(Items.sand, 1)] }, 80);
+  "Each cycle emits ONE output chosen by weight: 30% copper, 30% lead, 20% scrap, 10% coal and 10% sand. Huge copper and lead cost.",
+  Planets.serpulo,
+  [
+    { item: Items.copper, amount: 3, weight: 30 },
+    { item: Items.lead, amount: 3, weight: 30 },
+    { item: Items.scrap, amount: 2, weight: 20 },
+    { item: Items.coal, amount: 1, weight: 10 },
+    { item: Items.sand, amount: 1, weight: 10 },
+  ], 80);
 
-const refinedSynth = makeCrafter("refined-synthesizer", 130, 4,
+const refinedSynth = makeRandomCrafter("refined-synthesizer", 130, 4,
   [[Items.silicon, 500], [Items.graphite, 400], [Items.copper, 500], [Items.lead, 400]],
-  0.18, null, null,
+  0.18, null,
   "Refined Ore Synthesizer",
   "Refines the base feedstock to also yield titanium.\n" +
-  "Outputs copper, lead, coal, scrap, sand and titanium. Requires silicon and graphite to build.",
-  "synthesizer", Planets.serpulo,
-  { items: [new ItemStack(Items.copper, 3), new ItemStack(Items.lead, 3), new ItemStack(Items.coal, 1), new ItemStack(Items.scrap, 1), new ItemStack(Items.sand, 1), new ItemStack(Items.titanium, 1)] }, 80);
+  "Each cycle emits ONE output chosen by weight from copper, lead, coal, scrap, sand and titanium. Requires silicon and graphite to build.",
+  Planets.serpulo,
+  [
+    { item: Items.copper, amount: 3, weight: 30 },
+    { item: Items.lead, amount: 3, weight: 30 },
+    { item: Items.coal, amount: 1, weight: 10 },
+    { item: Items.scrap, amount: 1, weight: 10 },
+    { item: Items.sand, amount: 1, weight: 10 },
+    { item: Items.titanium, amount: 1, weight: 10 },
+  ], 80);
 
-const advancedSynth = makeCrafter("advanced-synthesizer", 140, 4,
+const advancedSynth = makeRandomCrafter("advanced-synthesizer", 140, 4,
   [[Items.titanium, 400], [Items.plastanium, 250], [Items.silicon, 300], [Items.thorium, 200], [Items.copper, 400], [Items.lead, 300]],
-  0.2, null, null,
+  0.2, null,
   "Advanced Ore Synthesizer",
   "The apex synthesizer, adding radioactive thorium to the output stream.\n" +
-  "Outputs copper, lead, coal, scrap, sand, titanium and thorium. Requires titanium and plastanium to build.",
-  "synthesizer", Planets.serpulo,
-  { items: [new ItemStack(Items.copper, 2), new ItemStack(Items.lead, 2), new ItemStack(Items.coal, 1), new ItemStack(Items.scrap, 1), new ItemStack(Items.sand, 1), new ItemStack(Items.titanium, 1), new ItemStack(Items.thorium, 1)] }, 80);
+  "Each cycle emits ONE output chosen by weight from copper, lead, coal, scrap, sand, titanium and thorium. Requires titanium and plastanium to build.",
+  Planets.serpulo,
+  [
+    { item: Items.copper, amount: 2, weight: 25 },
+    { item: Items.lead, amount: 2, weight: 25 },
+    { item: Items.coal, amount: 1, weight: 10 },
+    { item: Items.scrap, amount: 1, weight: 10 },
+    { item: Items.sand, amount: 1, weight: 10 },
+    { item: Items.titanium, amount: 1, weight: 10 },
+    { item: Items.thorium, amount: 1, weight: 10 },
+  ], 80);
 
 allGenerators.push(basicSynth, refinedSynth, advancedSynth);
+
+// cheap coal-from-scrap refiner (Serpulo only): no graphite, no power, works on Ground Zero.
+const scrapCoalExtractor = makeCrafter("scrap-coal-extractor", 1.5, 2,
+  [[Items.copper, 50], [Items.lead, 30], [Items.scrap, 25]],
+  null, null, [[Items.scrap, 10]],
+  "Scrap Coal Extractor",
+  "Recovers carbon from scrap metal and reclaims it as coal.\n" +
+  "Consumes 10 scrap per cycle, outputs 1 coal. No power and no graphite required — usable on Ground Zero.",
+  "unpowered", Planets.serpulo, { item: new ItemStack(Items.coal, 1) });
+allGenerators.push(scrapCoalExtractor);
 
 // record base stats so upgrades can recompute from them
 const baseCraftTime = {};
@@ -712,37 +793,39 @@ const galliumCosts = [
 ];
 
 if (drillNode != null) {
-  let cur = drillNode;
-  cur = chainResearch(cur,
+  // cheap coal-from-scrap refiner, available early (Ground Zero)
+  new TechTree.TechNode(drillNode, scrapCoalExtractor, ItemStack.with(Items.copper, 150, Items.lead, 100, Items.scrap, 75));
+  // each liquid producer and synthesizer gets its own chain off the drill node,
+  // like the per-ore chains (water -> cryofluid -> slag no longer stack end-to-end).
+  chainResearch(drillNode,
     ["water-research-1", "water-research-2", "water-research-3"],
     ["Water Extraction Theory", "Condensation Cycles", "Atmospheric Capture Unit"],
     "Research milestone for the Water Generator.", waterCosts, waterGen);
-  cur = chainResearch(cur,
+  chainResearch(drillNode,
     ["cryofluid-research-1", "cryofluid-research-2", "cryofluid-research-3"],
     ["Cryofluid Chilling", "Cryo Bath Design", "Cryofluid Synthesis Unit"],
     "Research milestone for the Cryofluid Generator.", cryoCosts, cryofluidGen);
-  cur = chainResearch(cur,
+  chainResearch(drillNode,
     ["slag-research-1", "slag-research-2", "slag-research-3"],
     ["Magma Channeling", "Crucible Metallurgy", "Molten Slag Vessel"],
     "Research milestone for the Slag Generator.", slagCosts, slagGen);
 
   // synthesizer chains (Serpulo only)
-  let s = drillNode;
-  s = chainResearch(s,
+  chainResearch(drillNode,
     ["synthesizer-research-1-1", "synthesizer-research-1-2", "synthesizer-research-1-3"],
     ["Feedstock Blending", "Multiplex Casting", "Basic Synthesizer Frame"],
     "Research milestone for the Basic Ore Synthesizer.",
     [ItemStack.with(Items.copper, 1200, Items.lead, 900),
      ItemStack.with(Items.copper, 2000, Items.lead, 1500, Items.graphite, 400),
      ItemStack.with(Items.copper, 3200, Items.lead, 2400, Items.graphite, 700, Items.silicon, 300)], basicSynth);
-  s = chainResearch(s,
+  chainResearch(drillNode,
     ["synthesizer-research-2-1", "synthesizer-research-2-2", "synthesizer-research-2-3"],
     ["Refining Catalysts", "Titanium Reduction", "Refined Synthesizer Frame"],
     "Research milestone for the Refined Ore Synthesizer.",
     [ItemStack.with(Items.silicon, 400, Items.graphite, 350, Items.copper, 600),
      ItemStack.with(Items.silicon, 700, Items.graphite, 600, Items.copper, 1000, Items.titanium, 200),
      ItemStack.with(Items.silicon, 1100, Items.graphite, 900, Items.titanium, 350, Items.plastanium, 150)], refinedSynth);
-  s = chainResearch(s,
+  chainResearch(drillNode,
     ["synthesizer-research-3-1", "synthesizer-research-3-2", "synthesizer-research-3-3"],
     ["Thorium Enrichment", "Plastanium Casting", "Advanced Synthesizer Frame"],
     "Research milestone for the Advanced Ore Synthesizer.",
@@ -752,16 +835,16 @@ if (drillNode != null) {
 }
 
 if (erekirNode != null) {
-  let cur = erekirNode;
-  cur = chainResearch(cur,
+  // same fan-out as Serpulo: each producer chain hangs off the erekir root.
+  chainResearch(erekirNode,
     ["ozone-research-1", "ozone-research-2", "ozone-research-3"],
     ["Ozone Discharge", "Corona Cycling", "Atmospheric Ozone Unit"],
     "Research milestone for the Ozone Generator.", ozoneCosts, ozoneGen);
-  cur = chainResearch(cur,
+  chainResearch(erekirNode,
     ["erekir-cryofluid-research-1", "erekir-cryofluid-research-2", "erekir-cryofluid-research-3"],
     ["Cryofluid Chilling", "Cryo Bath Design", "Cryofluid Synthesis Unit"],
     "Research milestone for the Cryofluid Generator.", erekirCryoCosts, cryofluidGenErekir);
-  cur = chainResearch(cur,
+  chainResearch(erekirNode,
     ["gallium-research-1", "gallium-research-2", "gallium-research-3"],
     ["Gallium Compression", "Magma Pressure", "Molten Gallium Vessel"],
     "Research milestone for the Gallium Generator.", galliumCosts, galliumGen);
