@@ -465,11 +465,10 @@ function defineUpgradeLine(kind, title, gateDescs, upDesc) {
   const gates = [];
   const ups = [];
   for (let i = 0; i < 10; i++) {
-    const n = i + 1;
-    const gd = typeof gateDescs === "function" ? gateDescs(n) : gateDescs[i];
-    const ud = typeof upDesc === "function" ? upDesc(n) : upDesc;
-    gates.push(makeGate("upgrade-research-" + kind + "-" + n, title + " Research " + roman[i], gd));
-    ups.push(makeUpgrade("generator-" + kind + "-" + n, title + " " + roman[i], ud));
+    const gd = typeof gateDescs === "function" ? gateDescs(i + 1) : gateDescs[i];
+    const ud = typeof upDesc === "function" ? upDesc(i + 1) : upDesc;
+    gates.push(makeGate("upgrade-research-" + kind + "-" + (i + 1), title + " Research " + roman[i], gd));
+    ups.push(makeUpgrade("generator-" + kind + "-" + (i + 1), title + " " + roman[i], ud));
   }
   return { gates: gates, ups: ups };
 }
