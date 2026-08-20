@@ -16,13 +16,13 @@
     - Small Unpowered (2x2): slow, no power, expensive to build.
     - Liquid-fed (3x3): fast, needs water (ozone on Erekir), no power.
     - Cryofluid-fed (3x3): fastest, needs power + cryofluid.
-    - Magma-fed (4x4): ultimate output, needs slag (slug on Erekir) + cryofluid + power.
+    - Magma-fed (4x4): ultimate output, needs slag (gallium on Erekir) + cryofluid + power.
 
     Ores: copper, lead, coal, titanium, scrap, thorium, sand (Serpulo),
     beryllium, tungsten (Erekir).
 
-    Self-contained liquids: water/ozone, cryofluid and slag/slug generators
-    produce every liquid the tiers consume, each progressively more expensive.
+Self-contained liquids: water/ozone, cryofluid and slag/gallium generators
+produce every liquid the tiers consume, each progressively more expensive.
 
     Multi-ore synthesizers (4x4) batch-produce basic ores with fixed ratios;
     refined and advanced versions add titanium and thorium.

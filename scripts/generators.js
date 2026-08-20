@@ -41,7 +41,7 @@ const oreDefs = [
     magma:     { craftTime: 18,  power: 0.1,  liquid: [0.4, 0.35], req: [[Items.thorium, 40], [Items.titanium, 80], [Items.plastanium, 40], [Items.phaseFabric, 30], [Items.surgeAlloy, 20], [Items.silicon, 100]] } },
 ];
 
-// Erekir ores. Liquid tier runs on ozone instead of water; magma tier runs on slug.
+// Erekir ores. Liquid tier runs on ozone instead of water; magma tier runs on gallium.
 const erekirOreDefs = [
   { id: "beryllium", name: "Beryllium", item: Items.beryllium, powered: { craftTime: 60, power: 0.05, req: [[Items.beryllium, 80], [Items.graphite, 40]] },
     unpowered: { craftTime: 150, req: [[Items.beryllium, 180], [Items.graphite, 90], [Items.silicon, 30]] },
@@ -123,7 +123,7 @@ const flavor = {
     unpowered: "A chemical scrubber that slowly collects beryllium-bearing dust.",
     water: "Solvent extraction recovers beryllium from the feed liquid.",
     cryo: "Cryogenic precipitation forces beryllium out of suspension as crystals.",
-    magma: "Beryl extraction from molten slug-electrolysis baths.",
+    magma: "Beryl extraction from molten gallium-electrolysis baths.",
   },
   tungsten: {
     powered: "Arc furnace reduction of airborne tungsten ore into metal.",
@@ -237,7 +237,7 @@ function applyDrawer(block, style) {
 }
 
 // build a 5-tier chain for one ore; liquidTier is the liquid used by the 3rd tier,
-// magmaTier the liquid used by the 5th tier (slag on Serpulo, slug on Erekir).
+// magmaTier the liquid used by the 5th tier (slag on Serpulo, gallium on Erekir).
 function buildChain(ore, liquidTier, magmaTier, planet) {
   const f = flavor[ore.id];
   const chain = {
@@ -281,7 +281,7 @@ for (let i = 0; i < oreDefs.length; i++) {
   buildChain(oreDefs[i], Liquids.water, Liquids.slag, Planets.serpulo);
 }
 for (let i = 0; i < erekirOreDefs.length; i++) {
-  buildChain(erekirOreDefs[i], Liquids.ozone, Liquids.slug, Planets.erekir);
+  buildChain(erekirOreDefs[i], Liquids.ozone, Liquids.gallium, Planets.erekir);
 }// ---- liquid-producing generators (self-contained resource generation) ----
 // 3x3 on both planets: a clear upgrade over the vanilla 2x2 water/ozone generators.
 function makeLiquidProducer(name, title, desc, liquidOut, outAmount, craftTime, size, req, power, liquid, consumeItems, planet, style) {
@@ -328,14 +328,14 @@ const cryofluidGenErekir = makeLiquidProducer("erekir-cryofluid-gen", "Cryofluid
   [[Items.tungsten, 300], [Items.oxide, 120], [Items.silicon, 220], [Items.plastanium, 150]],
   0.15, { liquid: Liquids.ozone, amount: 1 }, [[Items.tungsten, 1]], Planets.erekir, "cryo");
 
-const slugGen = makeLiquidProducer("slug-gen", "Slug Generator",
-  "Pressurizes molten tungsten slag into dense superheated slug.\n" +
-  "Consumes ozone and tungsten. Produces slug: 2/sec. Absurdly expensive.",
-  Liquids.slug, 1, 30, 3,
+const galliumGen = makeLiquidProducer("gallium-gen", "Gallium Generator",
+  "Vaporizes tungsten anodes and condenses the vapor into liquid gallium.\n" +
+  "Consumes ozone and tungsten. Produces gallium: 2/sec. Absurdly expensive.",
+  Liquids.gallium, 1, 30, 3,
   [[Items.thorium, 200], [Items.tungsten, 240], [Items.phaseFabric, 150], [Items.surgeAlloy, 100], [Items.silicon, 300]],
   0.2, { liquid: Liquids.ozone, amount: 1 }, [[Items.tungsten, 1]], Planets.erekir, "magma");
 
-allGenerators.push(waterGen, cryofluidGen, slagGen, ozoneGen, cryofluidGenErekir, slugGen);
+allGenerators.push(waterGen, cryofluidGen, slagGen, ozoneGen, cryofluidGenErekir, galliumGen);
 
 // ---- multi-ore variant synthesizers (Serpulo only) ----
 const basicSynth = makeCrafter("basic-synthesizer", 120, 4,
@@ -710,7 +710,7 @@ const erekirCryoCosts = [
   ItemStack.with(Items.tungsten, 400, Items.oxide, 160, Items.silicon, 250, Items.plastanium, 80),
   ItemStack.with(Items.tungsten, 650, Items.oxide, 250, Items.silicon, 400, Items.plastanium, 150, Items.phaseFabric, 80),
 ];
-const slugCosts = [
+const galliumCosts = [
   ItemStack.with(Items.thorium, 400, Items.tungsten, 400, Items.phaseFabric, 120, Items.silicon, 400),
   ItemStack.with(Items.thorium, 700, Items.tungsten, 700, Items.phaseFabric, 200, Items.silicon, 700, Items.surgeAlloy, 100),
   ItemStack.with(Items.thorium, 1100, Items.tungsten, 1100, Items.phaseFabric, 320, Items.silicon, 1100, Items.surgeAlloy, 180),
@@ -767,9 +767,9 @@ if (erekirNode != null) {
     ["Cryofluid Chilling", "Cryo Bath Design", "Cryofluid Synthesis Unit"],
     "Research milestone for the Cryofluid Generator.", erekirCryoCosts, cryofluidGenErekir);
   cur = chainResearch(cur,
-    ["slug-research-1", "slug-research-2", "slug-research-3"],
-    ["Slug Compression", "Magma Pressure", "Molten Slug Vessel"],
-    "Research milestone for the Slug Generator.", slugCosts, slugGen);
+    ["gallium-research-1", "gallium-research-2", "gallium-research-3"],
+    ["Gallium Compression", "Magma Pressure", "Molten Gallium Vessel"],
+    "Research milestone for the Gallium Generator.", galliumCosts, galliumGen);
 }
 
 // ---- upgrade research gates ----

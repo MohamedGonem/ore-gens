@@ -258,7 +258,7 @@ LIQUID = {
     "ozone":     dict(frame=("#4a4a9a", "#1e1e4a"), panel=("#1a1a38", "#0e0e1f"), gem=("#c8b8ff", "#5a54a0"), accent="#8a80ff", liquid="#b8a8ff"),
     "cryofluid": dict(frame=("#2a7a7a", "#103438"), panel=("#123034", "#091c1e"), gem=("#a8f4ff", "#3aa0aa"), accent="#44e0e8", liquid="#9ff0f8"),
     "slag":      dict(frame=("#7a3420", "#381408"), panel=("#2a1208", "#180a04"), gem=("#ff9a3c", "#a84a14"), accent="#ff6a2a", liquid="#ff7a2a", crack="#ff6a2a", flame="#ffb03c"),
-    "slug":      dict(frame=("#9a3a2a", "#421008"), panel=("#341008", "#1c0804"), gem=("#ff8a4a", "#b04a14"), accent="#ff4a2a", liquid="#ff6a2a", crack="#ff4a2a", flame="#ff9a4a"),
+    "gallium":   dict(frame=("#8a94a8", "#3a4050"), panel=("#262c38", "#141820"), gem=("#f0f4ff", "#8a94a8"), accent="#c8d4e8", liquid="#d8e4f8", crack="#c8d4e8", flame="#e8f0ff"),
 }
 
 SYNTH = {

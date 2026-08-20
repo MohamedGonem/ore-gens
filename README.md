@@ -17,7 +17,7 @@ Every ore has five generator tiers:
 | Passive | 2x2 | none | - | slow, heavy, expensive |
 | Liquid-fed | 3x3 | none | water (ozone on Erekir) | fast |
 | Cryo | 3x3 | required | cryofluid | faster |
-| Magma | 4x4 | required | slag (slug on Erekir) + cryofluid | ultimate output |
+| Magma | 4x4 | required | slag (gallium on Erekir) + cryofluid | ultimate output |
 
 Each ore uses a distinct real-world-inspired extraction process, so no two generators are alike on paper — electrowinning, gravity precipitation, carbon scrubbing, plasma reduction, magnetic separation, irradiation, cyclonic sieving and more.
 
@@ -27,7 +27,7 @@ Liquid producers generate every liquid the tiers consume, each progressively mor
 
 - **Water Generator / Ozone Generator** (3x3) — upgraded water extractor / ozone generator.
 - **Cryofluid Generator** (3x3) — very expensive; a Serpulo and an Erekir variant.
-- **Slag Generator** (Serpulo) / **Slug Generator** (Erekir) (3x3) — very very very expensive.
+- **Slag Generator** (Serpulo) / **Gallium Generator** (Erekir) (3x3) — very very very expensive.
 
 ## Multi-ore synthesizers
 
