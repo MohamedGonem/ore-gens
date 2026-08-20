@@ -236,7 +236,7 @@ function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, loca
         }
       }
       this.items.add(chosen.item, chosen.amount);
-      if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotate);
+      if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
     }
   });
   return block;
