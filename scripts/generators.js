@@ -795,37 +795,39 @@ const galliumCosts = [
 if (drillNode != null) {
   // cheap coal-from-scrap refiner, available early (Ground Zero)
   new TechTree.TechNode(drillNode, scrapCoalExtractor, ItemStack.with(Items.copper, 150, Items.lead, 100, Items.scrap, 75));
-  // each liquid producer and synthesizer gets its own chain off the drill node,
-  // like the per-ore chains (water -> cryofluid -> slag no longer stack end-to-end).
-  chainResearch(drillNode,
+  // liquid producers stack one chain under the next (water -> cryofluid -> slag),
+  // like the per-ore chains; synthesizers do the same.
+  let cur = drillNode;
+  cur = chainResearch(cur,
     ["water-research-1", "water-research-2", "water-research-3"],
     ["Water Extraction Theory", "Condensation Cycles", "Atmospheric Capture Unit"],
     "Research milestone for the Water Generator.", waterCosts, waterGen);
-  chainResearch(drillNode,
+  cur = chainResearch(cur,
     ["cryofluid-research-1", "cryofluid-research-2", "cryofluid-research-3"],
     ["Cryofluid Chilling", "Cryo Bath Design", "Cryofluid Synthesis Unit"],
     "Research milestone for the Cryofluid Generator.", cryoCosts, cryofluidGen);
-  chainResearch(drillNode,
+  chainResearch(cur,
     ["slag-research-1", "slag-research-2", "slag-research-3"],
     ["Magma Channeling", "Crucible Metallurgy", "Molten Slag Vessel"],
     "Research milestone for the Slag Generator.", slagCosts, slagGen);
 
   // synthesizer chains (Serpulo only)
-  chainResearch(drillNode,
+  let s = drillNode;
+  s = chainResearch(s,
     ["synthesizer-research-1-1", "synthesizer-research-1-2", "synthesizer-research-1-3"],
     ["Feedstock Blending", "Multiplex Casting", "Basic Synthesizer Frame"],
     "Research milestone for the Basic Ore Synthesizer.",
     [ItemStack.with(Items.copper, 1200, Items.lead, 900),
      ItemStack.with(Items.copper, 2000, Items.lead, 1500, Items.graphite, 400),
      ItemStack.with(Items.copper, 3200, Items.lead, 2400, Items.graphite, 700, Items.silicon, 300)], basicSynth);
-  chainResearch(drillNode,
+  s = chainResearch(s,
     ["synthesizer-research-2-1", "synthesizer-research-2-2", "synthesizer-research-2-3"],
     ["Refining Catalysts", "Titanium Reduction", "Refined Synthesizer Frame"],
     "Research milestone for the Refined Ore Synthesizer.",
     [ItemStack.with(Items.silicon, 400, Items.graphite, 350, Items.copper, 600),
      ItemStack.with(Items.silicon, 700, Items.graphite, 600, Items.copper, 1000, Items.titanium, 200),
      ItemStack.with(Items.silicon, 1100, Items.graphite, 900, Items.titanium, 350, Items.plastanium, 150)], refinedSynth);
-  chainResearch(drillNode,
+  chainResearch(s,
     ["synthesizer-research-3-1", "synthesizer-research-3-2", "synthesizer-research-3-3"],
     ["Thorium Enrichment", "Plastanium Casting", "Advanced Synthesizer Frame"],
     "Research milestone for the Advanced Ore Synthesizer.",
@@ -835,16 +837,17 @@ if (drillNode != null) {
 }
 
 if (erekirNode != null) {
-  // same fan-out as Serpulo: each producer chain hangs off the erekir root.
-  chainResearch(erekirNode,
+  // same stacking as Serpulo: ozone -> cryofluid -> gallium chains.
+  let cur = erekirNode;
+  cur = chainResearch(cur,
     ["ozone-research-1", "ozone-research-2", "ozone-research-3"],
     ["Ozone Discharge", "Corona Cycling", "Atmospheric Ozone Unit"],
     "Research milestone for the Ozone Generator.", ozoneCosts, ozoneGen);
-  chainResearch(erekirNode,
+  cur = chainResearch(cur,
     ["erekir-cryofluid-research-1", "erekir-cryofluid-research-2", "erekir-cryofluid-research-3"],
     ["Cryofluid Chilling", "Cryo Bath Design", "Cryofluid Synthesis Unit"],
     "Research milestone for the Cryofluid Generator.", erekirCryoCosts, cryofluidGenErekir);
-  chainResearch(erekirNode,
+  chainResearch(cur,
     ["gallium-research-1", "gallium-research-2", "gallium-research-3"],
     ["Gallium Compression", "Magma Pressure", "Molten Gallium Vessel"],
     "Research milestone for the Gallium Generator.", galliumCosts, galliumGen);
