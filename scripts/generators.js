@@ -199,22 +199,7 @@ function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, loca
     totalWeight += entries[i].weight;
     stacks.push(new ItemStack(entries[i].item, entries[i].amount));
   }
-  const block = extend(GenericCrafter, name, {
-    craft() {
-      this.consume();
-      let r = Math.random() * totalWeight;
-      let chosen = entries[entries.length - 1];
-      for (let i = 0; i < entries.length; i++) {
-        r -= entries[i].weight;
-        if (r <= 0) {
-          chosen = entries[i];
-          break;
-        }
-      }
-      this.items.add(chosen.item, chosen.amount);
-      if (this.wasVisible) this.craftEffect.at(this.x, this.y, this.rotate);
-    }
-  });
+  const block = extend(GenericCrafter, name, {});
   block.outputItems = stacks;
   block.requirements = makeRequirements(req);
   block.craftTime = craftTime;
@@ -236,6 +221,24 @@ function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, loca
   if (power != null) block.consumePower(power);
   applyAmbiance(block, "synthesizer");
   applyDrawer(block, "synthesizer");
+  // craft() lives on the building, not the block: override it via buildType so
+  // each cycle emits exactly ONE weighted output instead of all outputs at once.
+  block.buildType = () => extend(GenericCrafter.GenericCrafterBuild, block, {
+    craft() {
+      this.consume();
+      let r = Math.random() * totalWeight;
+      let chosen = entries[entries.length - 1];
+      for (let i = 0; i < entries.length; i++) {
+        r -= entries[i].weight;
+        if (r <= 0) {
+          chosen = entries[i];
+          break;
+        }
+      }
+      this.items.add(chosen.item, chosen.amount);
+      if (this.wasVisible) this.craftEffect.at(this.x, this.y, this.rotate);
+    }
+  });
   return block;
 }
 
