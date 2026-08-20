@@ -385,6 +385,42 @@ const galliumGen = makeLiquidProducer("gallium-gen", "Gallium Generator",
 
 allGenerators.push(waterGen, cryofluidGen, slagGen, ozoneGen, cryofluidGenErekir, galliumGen);
 
+// crafter with a per-cycle chance to yield a single output (scrap coal extractor).
+function makeChanceCrafter(name, craftTime, size, req, consumeItems, chance, outItem, outAmount, localizedName, description, planet, style) {
+  const block = extend(GenericCrafter, name, {});
+  block.outputItem = new ItemStack(outItem, outAmount);
+  block.requirements = makeRequirements(req);
+  block.craftTime = craftTime;
+  block.size = size;
+  block.category = Category.production;
+  block.buildVisibility = BuildVisibility.shown;
+  block.shownPlanets.add(planet);
+  block.itemCapacity = 20;
+  block.health = 200 * size;
+  block.localizedName = localizedName;
+  block.description = description;
+  block.warmupSpeed = 0.04;
+  block.researchCostMultiplier = 0.1;
+  if (consumeItems != null) {
+    for (let i = 0; i < consumeItems.length; i++) {
+      block.consumeItem(consumeItems[i][0], consumeItems[i][1]);
+    }
+  }
+  applyAmbiance(block, style);
+  applyDrawer(block, style);
+  // chance-based output lives on the building craft, like the synthesizers.
+  block.buildType = () => extend(GenericCrafter.GenericCrafterBuild, block, {
+    craft() {
+      this.consume();
+      if (Math.random() < chance) {
+        this.items.add(outItem, outAmount);
+        if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
+      }
+    }
+  });
+  return block;
+}
+
 // ---- multi-ore variant synthesizers (Serpulo only) ----
 // Each cycle emits ONE output chosen by weight (not a bulk of all outputs).
 const basicSynth = makeRandomCrafter("basic-synthesizer", 120, 4,
@@ -438,13 +474,14 @@ const advancedSynth = makeRandomCrafter("advanced-synthesizer", 140, 4,
 allGenerators.push(basicSynth, refinedSynth, advancedSynth);
 
 // cheap coal-from-scrap refiner (Serpulo only): no graphite, no power, works on Ground Zero.
-const scrapCoalExtractor = makeCrafter("scrap-coal-extractor", 1.5, 2,
+// Each 1 scrap has a 5% chance to yield coal.
+const scrapCoalExtractor = makeChanceCrafter("scrap-coal-extractor", 0.5, 2,
   [[Items.copper, 50], [Items.lead, 30], [Items.scrap, 25]],
-  null, null, [[Items.scrap, 10]],
+  [[Items.scrap, 1]], 0.05, Items.coal, 1,
   "Scrap Coal Extractor",
-  "Recovers carbon from scrap metal and reclaims it as coal.\n" +
-  "Consumes 10 scrap per cycle, outputs 1 coal. No power and no graphite required — usable on Ground Zero.",
-  "unpowered", Planets.serpulo, { item: new ItemStack(Items.coal, 1) });
+  "Sifts scrap for recoverable carbon.\n" +
+  "Consumes 1 scrap per cycle; each scrap has a 5% chance to yield 1 coal. No power and no graphite required — usable on Ground Zero.",
+  Planets.serpulo, "unpowered");
 allGenerators.push(scrapCoalExtractor);
 
 // record base stats so upgrades can recompute from them
