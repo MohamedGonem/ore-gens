@@ -149,11 +149,7 @@ function makeCrafter(name, craftTime, size, req, power, liquid, consumeItems, lo
   const block = extend(GenericCrafter, name, {});
   block.requirements = makeRequirements(req);
   if (outputs != null && outputs.items != null) {
-    const seq = new Seq();
-    for (let i = 0; i < outputs.items.length; i++) {
-      seq.add(outputs.items[i]);
-    }
-    block.outputItems = seq;
+    block.outputItems = outputs.items;
   } else if (outputs != null && outputs.liquid != null) {
     block.outputLiquid = outputs.liquid;
   } else {
@@ -381,8 +377,8 @@ for (let i = 0; i < allGenerators.length; i++) {
   if (b.outputItem != null) baseOutput[b.name] = b.outputItem.amount;
   if (b.outputItems != null) {
     baseOutputs[b.name] = [];
-    for (let k = 0; k < b.outputItems.size; k++) {
-      baseOutputs[b.name].push(b.outputItems.get(k).amount);
+    for (let k = 0; k < b.outputItems.length; k++) {
+      baseOutputs[b.name].push(b.outputItems[k].amount);
     }
   }
   if (b.outputLiquid != null) baseLiquid[b.name] = b.outputLiquid.amount;
@@ -823,8 +819,8 @@ function applyUpgrades() {
       b.outputItem.amount = baseOutput[b.name] * outputMult;
     }
     if (baseOutputs[b.name] != null) {
-      for (let k = 0; k < b.outputItems.size; k++) {
-        b.outputItems.get(k).amount = Math.floor(baseOutputs[b.name][k] * outputMult);
+      for (let k = 0; k < b.outputItems.length; k++) {
+        b.outputItems[k].amount = Math.floor(baseOutputs[b.name][k] * outputMult);
       }
     }
     if (baseLiquid[b.name] != null) {

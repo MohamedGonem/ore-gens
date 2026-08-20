@@ -21,8 +21,8 @@
     Ores: copper, lead, coal, titanium, scrap, thorium, sand (Serpulo),
     beryllium, tungsten (Erekir).
 
-Self-contained liquids: water/ozone, cryofluid and slag/gallium generators
-produce every liquid the tiers consume, each progressively more expensive.
+    Self-contained liquids: water/ozone, cryofluid and slag/gallium generators
+    produce every liquid the tiers consume, each progressively more expensive.
 
     Multi-ore synthesizers (4x4) batch-produce basic ores with fixed ratios;
     refined and advanced versions add titanium and thorium.
