@@ -332,47 +332,61 @@ if __name__ == "__main__":
         generated.append(path)
         print("  " + path)
 
+    print("Ore generators, powered/unpowered (2x2, 64px):")
+    for ore, th in ORE.items():
+        save_block(ore + "-gen", 64, th, "powered")
+        save_block(ore + "-gen-unpowered", 64, th, "unpowered", overlays=False)
+        for s in ("", "-glow", "-spin", "-spin-blur"):
+            note(f"{ore}-gen{s}.png")
+        note(f"{ore}-gen-unpowered.png")
+
+    print("Ore liquid/cryo generators (3x3, 96px):")
+    for ore, th in ORE.items():
+        for variant, sfx in (("water", "-water"), ("cryo", "-cryo")):
+            save_block(ore + "-gen" + sfx, 96, th, variant)
+            for s in ("", "-glow", "-spin", "-spin-blur"):
+                note(f"{ore}-gen{sfx}{s}.png")
+
     print("Magma tiers (4x4, 128px):")
     for ore, th in ORE.items():
-        for suffix in ("", "-glow", "-spin", "-spin-blur"):
-            note(f"{ore}-gen-magma{suffix}.png")
         save_block(ore + "-gen-magma", 128, th, "magma")
+        for s in ("", "-glow", "-spin", "-spin-blur"):
+            note(f"{ore}-gen-magma{s}.png")
 
     print("Liquid generators (3x3, 96px):")
     for lid, th in LIQUID.items():
-        save_block(lid + "-gen", 96, th, "water" if lid in ("water", "ozone") else ("cryo" if lid == "cryofluid" else "magma"))
-        for suffix in ("", "-glow", "-spin", "-spin-blur"):
-            note(f"{lid}-gen{suffix}.png")
-    # Erekir cryofluid generator: distinct block, distinct recipe, same visual family
+        variant = "water" if lid in ("water", "ozone") else ("cryo" if lid == "cryofluid" else "magma")
+        save_block(lid + "-gen", 96, th, variant)
+        for s in ("", "-glow", "-spin", "-spin-blur"):
+            note(f"{lid}-gen{s}.png")
     save_block("erekir-cryofluid-gen", 96, LIQUID["cryofluid"], "cryo")
-    for suffix in ("", "-glow", "-spin", "-spin-blur"):
-        note(f"erekir-cryofluid-gen{suffix}.png")
+    for s in ("", "-glow", "-spin", "-spin-blur"):
+        note(f"erekir-cryofluid-gen{s}.png")
 
     print("Synthesizers (4x4, 128px):")
     for sid, th in SYNTH.items():
         save_block(sid + "-synthesizer", 128, th, "synthesizer")
-        for suffix in ("", "-glow", "-spin", "-spin-blur"):
-            note(f"{sid}-synthesizer{suffix}.png")
+        for s in ("", "-glow", "-spin", "-spin-blur"):
+            note(f"{sid}-synthesizer{s}.png")
 
-    print("Upgrade icons 4-10:")
+    print("Upgrade icons 1-10:")
     for line in ("speed", "capacity", "output", "efficiency"):
-        start = {"speed": 4, "capacity": 4, "output": 3, "efficiency": 3}[line]
-        for i in range(start, 11):
+        for i in range(1, 11):
             save(f"generator-{line}-{i}", build_generator(32, UPGRADE[line], "icon")["base"])
             note(f"generator-{line}-{i}.png")
 
-    print("Upgrade gates 4-10:")
+    print("Upgrade gates 1-10:")
     for line in ("speed", "capacity", "output", "efficiency"):
-        start = {"speed": 4, "capacity": 4, "output": 3, "efficiency": 3}[line]
-        for i in range(start, 11):
+        for i in range(1, 11):
             gate_icon(f"upgrade-research-{line}-{i}", UPGRADE[line])
             note(f"upgrade-research-{line}-{i}.png")
 
-    print("Research milestones (magma tiers):")
+    print("Research milestones (ore tiers 1-5):")
     for ore, th in ORE.items():
-        for s in (1, 2, 3):
-            research_icon(f"{ore}-research-5-{s}", th)
-            note(f"{ore}-research-5-{s}.png")
+        for t in range(1, 6):
+            for s in (1, 2, 3):
+                research_icon(f"{ore}-research-{t}-{s}", th)
+                note(f"{ore}-research-{t}-{s}.png")
 
     print("Research milestones (liquid gens):")
     for lid, th in LIQUID.items():
