@@ -194,12 +194,6 @@ function makeCrafter(name, craftTime, size, req, power, liquid, consumeItems, lo
   }
   applyAmbiance(block, style);
   applyDrawer(block, style);
-  // Clamp item output to remaining capacity so items are never lost when full.
-  if (block.outputItem != null || block.outputItems != null) {
-    block.buildType = () => extend(GenericCrafter.GenericCrafterBuild, block, {
-      craft: clampedCraft(block)
-    });
-  }
   return block;
 }
 
@@ -238,7 +232,7 @@ function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, loca
   // each cycle emits exactly ONE weighted output instead of all outputs at once.
   block.buildType = () => extend(GenericCrafter.GenericCrafterBuild, block, {
     craft() {
-      // Pick output first, then check capacity before consuming.
+      this.consume();
       let r = Math.random() * totalWeight;
       let chosen = entries[entries.length - 1];
       for (let i = 0; i < entries.length; i++) {
@@ -248,14 +242,8 @@ function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, loca
           break;
         }
       }
-      var remaining = block.itemCapacity - this.items.get(chosen.item);
-      if (remaining <= 0) return;
-      this.consume();
-      var toAdd = Math.min(chosen.amount, remaining);
-      if (toAdd > 0) {
-        this.items.add(chosen.item, toAdd);
-        if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
-      }
+      this.items.add(chosen.item, chosen.amount);
+      if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
     }
   });
   return block;
@@ -301,42 +289,6 @@ function applyDrawer(block, style) {
     new DrawGlowRegion(),
     new DrawBlurSpin("-spin", 1.0)
   );
-}
-
-// Returns a craft() implementation that clamps item output to remaining capacity.
-// Skips consume entirely when no room is available (no wasted inputs).
-function clampedCraft(block) {
-  return function() {
-    // Check capacity BEFORE consuming to avoid wasting resources when full.
-    if (block.outputItem != null) {
-      var remaining = block.itemCapacity - this.items.get(block.outputItem.item);
-      if (remaining <= 0) return;
-    }
-    if (block.outputItems != null) {
-      var anyRoom = false;
-      for (var i = 0; i < block.outputItems.length; i++) {
-        if (block.itemCapacity - this.items.get(block.outputItems[i].item) > 0) { anyRoom = true; break; }
-      }
-      if (!anyRoom) return;
-    }
-    this.consume();
-    if (block.outputItem != null) {
-      var item = block.outputItem.item;
-      var amount = block.outputItem.amount;
-      var remaining = block.itemCapacity - this.items.get(item);
-      var toAdd = Math.min(amount, remaining);
-      if (toAdd > 0) this.items.add(item, toAdd);
-    }
-    if (block.outputItems != null) {
-      for (var i = 0; i < block.outputItems.length; i++) {
-        var stack = block.outputItems[i];
-        var remaining = block.itemCapacity - this.items.get(stack.item);
-        var toAdd = Math.min(stack.amount, remaining);
-        if (toAdd > 0) this.items.add(stack.item, toAdd);
-      }
-    }
-    if (this.wasVisible) block.craftEffect.at(this.x, this.y, this.rotation);
-  };
 }
 
 // build a 5-tier chain for one ore; liquidTier is the liquid used by the 3rd tier,
@@ -473,16 +425,10 @@ function makeChanceCrafter(name, craftTime, size, req, consumeItems, chance, out
   // chance-based output lives on the building craft, like the synthesizers.
   block.buildType = () => extend(GenericCrafter.GenericCrafterBuild, block, {
     craft() {
-      // Check capacity BEFORE consuming to avoid wasting resources when full.
-      var remaining = block.itemCapacity - this.items.get(outItem);
-      if (remaining <= 0) return;
       this.consume();
       if (Math.random() < chance) {
-        var toAdd = Math.min(outAmount, remaining);
-        if (toAdd > 0) {
-          this.items.add(outItem, toAdd);
-          if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
-        }
+        this.items.add(outItem, outAmount);
+        if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
       }
     }
   });
