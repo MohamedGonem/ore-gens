@@ -118,6 +118,13 @@ const flavor = {
     cryo: "Frost agglomeration forces sand out of suspension as grains.",
     magma: "Vitreous sieving of silica from flash-cooled lava streams.",
   },
+  oil: {
+    powered: "Thermal cracking of airborne hydrocarbons into refined petroleum oil.",
+    unpowered: "A passive condenser that slowly collects hydrocarbon vapors.",
+    water: "Solvent extraction recovers petroleum from the feed liquid.",
+    cryo: "Cryogenic distillation condenses volatile hydrocarbons into oil.",
+    magma: "Plasma-assisted cracking of hydrocarbon-laden slag streams.",
+  },
   beryllium: {
     powered: "Electrolytic extraction of beryllium from airborne beryl dust.",
     unpowered: "A chemical scrubber that slowly collects beryllium-bearing dust.",
@@ -187,6 +194,12 @@ function makeCrafter(name, craftTime, size, req, power, liquid, consumeItems, lo
   }
   applyAmbiance(block, style);
   applyDrawer(block, style);
+  // Clamp item output to remaining capacity so items are never lost when full.
+  if (block.outputItem != null || block.outputItems != null) {
+    block.buildType = () => extend(GenericCrafter.GenericCrafterBuild, block, {
+      craft: clampedCraft(block)
+    });
+  }
   return block;
 }
 
@@ -225,7 +238,7 @@ function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, loca
   // each cycle emits exactly ONE weighted output instead of all outputs at once.
   block.buildType = () => extend(GenericCrafter.GenericCrafterBuild, block, {
     craft() {
-      this.consume();
+      // Pick output first, then check capacity before consuming.
       let r = Math.random() * totalWeight;
       let chosen = entries[entries.length - 1];
       for (let i = 0; i < entries.length; i++) {
@@ -235,8 +248,14 @@ function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, loca
           break;
         }
       }
-      this.items.add(chosen.item, chosen.amount);
-      if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
+      var remaining = block.itemCapacity - this.items.get(chosen.item);
+      if (remaining <= 0) return;
+      this.consume();
+      var toAdd = Math.min(chosen.amount, remaining);
+      if (toAdd > 0) {
+        this.items.add(chosen.item, toAdd);
+        if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
+      }
     }
   });
   return block;
@@ -282,6 +301,42 @@ function applyDrawer(block, style) {
     new DrawGlowRegion(),
     new DrawBlurSpin("-spin", 1.0)
   );
+}
+
+// Returns a craft() implementation that clamps item output to remaining capacity.
+// Skips consume entirely when no room is available (no wasted inputs).
+function clampedCraft(block) {
+  return function() {
+    // Check capacity BEFORE consuming to avoid wasting resources when full.
+    if (block.outputItem != null) {
+      var remaining = block.itemCapacity - this.items.get(block.outputItem.item);
+      if (remaining <= 0) return;
+    }
+    if (block.outputItems != null) {
+      var anyRoom = false;
+      for (var i = 0; i < block.outputItems.length; i++) {
+        if (block.itemCapacity - this.items.get(block.outputItems[i].item) > 0) { anyRoom = true; break; }
+      }
+      if (!anyRoom) return;
+    }
+    this.consume();
+    if (block.outputItem != null) {
+      var item = block.outputItem.item;
+      var amount = block.outputItem.amount;
+      var remaining = block.itemCapacity - this.items.get(item);
+      var toAdd = Math.min(amount, remaining);
+      if (toAdd > 0) this.items.add(item, toAdd);
+    }
+    if (block.outputItems != null) {
+      for (var i = 0; i < block.outputItems.length; i++) {
+        var stack = block.outputItems[i];
+        var remaining = block.itemCapacity - this.items.get(stack.item);
+        var toAdd = Math.min(stack.amount, remaining);
+        if (toAdd > 0) this.items.add(stack.item, toAdd);
+      }
+    }
+    if (this.wasVisible) block.craftEffect.at(this.x, this.y, this.rotation);
+  };
 }
 
 // build a 5-tier chain for one ore; liquidTier is the liquid used by the 3rd tier,
@@ -361,6 +416,13 @@ const slagGen = makeLiquidProducer("slag-gen", "Slag Generator",
   [[Items.thorium, 200], [Items.plastanium, 180], [Items.phaseFabric, 150], [Items.surgeAlloy, 100], [Items.silicon, 300]],
   0.2, null, [[Items.sand, 1], [Items.coal, 1]], Planets.serpulo, "magma");
 
+const oilGen = makeLiquidProducer("oil-gen", "Oil Generator",
+  "Thermal cracking of airborne hydrocarbons into refined petroleum oil.\n" +
+  "Consumes coal. Produces oil: 6/sec. Needs power.",
+  Liquids.oil, 1, 10, 3,
+  [[Items.copper, 300], [Items.lead, 200], [Items.graphite, 100], [Items.silicon, 50]],
+  0.1, null, [[Items.coal, 1]], Planets.serpulo, "water");
+
 // Erekir
 const ozoneGen = makeLiquidProducer("ozone-gen", "Ozone Generator",
   "Electrolyzes trace atmosphere into reactive ozone at industrial rates.\n" +
@@ -383,7 +445,7 @@ const galliumGen = makeLiquidProducer("gallium-gen", "Gallium Generator",
   [[Items.thorium, 200], [Items.tungsten, 240], [Items.phaseFabric, 150], [Items.surgeAlloy, 100], [Items.silicon, 300]],
   0.2, { liquid: Liquids.ozone, amount: 1 }, [[Items.tungsten, 1]], Planets.erekir, "magma");
 
-allGenerators.push(waterGen, cryofluidGen, slagGen, ozoneGen, cryofluidGenErekir, galliumGen);
+allGenerators.push(waterGen, cryofluidGen, slagGen, oilGen, ozoneGen, cryofluidGenErekir, galliumGen);
 
 // crafter with a per-cycle chance to yield a single output (scrap coal extractor).
 function makeChanceCrafter(name, craftTime, size, req, consumeItems, chance, outItem, outAmount, localizedName, description, planet, style) {
@@ -411,10 +473,16 @@ function makeChanceCrafter(name, craftTime, size, req, consumeItems, chance, out
   // chance-based output lives on the building craft, like the synthesizers.
   block.buildType = () => extend(GenericCrafter.GenericCrafterBuild, block, {
     craft() {
+      // Check capacity BEFORE consuming to avoid wasting resources when full.
+      var remaining = block.itemCapacity - this.items.get(outItem);
+      if (remaining <= 0) return;
       this.consume();
       if (Math.random() < chance) {
-        this.items.add(outItem, outAmount);
-        if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
+        var toAdd = Math.min(outAmount, remaining);
+        if (toAdd > 0) {
+          this.items.add(outItem, toAdd);
+          if (this.wasVisible) this.block.craftEffect.at(this.x, this.y, this.rotation);
+        }
       }
     }
   });
@@ -519,7 +587,7 @@ const capacityUpgrades = [];
 const outputUpgrades = [];
 const efficiencyUpgrades = [];
 const speedStep = 0.9;      // each level: craftTime *= 0.9  (-10%)
-const capacityStep = 10;    // each level: itemCapacity += 10
+const capacityStep = 2;    // each level: itemCapacity *= 2
 const outputStep = 2;       // each level: output stack *= 2
 const efficiencyStep = 0.85; // each level: power usage *= 0.85 (-15%)
 
@@ -666,7 +734,7 @@ const effGateDescs = [
 ];
 
 const speedLine = defineUpgradeLine("speed", "Generator Speed", speedGateDescs, "All generators produce 10% faster.");
-const capLine = defineUpgradeLine("capacity", "Generator Capacity", capGateDescs, "All generators hold 10 more items.");
+const capLine = defineUpgradeLine("capacity", "Generator Capacity", capGateDescs, "All generators double their storage capacity.");
 const outLine = defineUpgradeLine("output", "Generator Output", outGateDescs, "All generators double their output.");
 const effLine = defineUpgradeLine("efficiency", "Generator Efficiency", effGateDescs, "Powered generators use 15% less power.");
 
@@ -819,6 +887,11 @@ const slagCosts = [
   ItemStack.with(Items.thorium, 700, Items.plastanium, 350, Items.silicon, 700, Items.phaseFabric, 200, Items.surgeAlloy, 100),
   ItemStack.with(Items.thorium, 1100, Items.plastanium, 550, Items.silicon, 1100, Items.phaseFabric, 320, Items.surgeAlloy, 180),
 ];
+const oilCosts = [
+  ItemStack.with(Items.coal, 300, Items.graphite, 200, Items.silicon, 100),
+  ItemStack.with(Items.coal, 500, Items.graphite, 350, Items.silicon, 200, Items.titanium, 80),
+  ItemStack.with(Items.coal, 800, Items.graphite, 550, Items.silicon, 350, Items.titanium, 150, Items.plastanium, 80),
+];
 const ozoneCosts = [
   ItemStack.with(Items.beryllium, 300, Items.graphite, 200, Items.tungsten, 80),
   ItemStack.with(Items.beryllium, 500, Items.graphite, 350, Items.tungsten, 150, Items.silicon, 100),
@@ -838,21 +911,23 @@ const galliumCosts = [
 if (drillNode != null) {
   // cheap coal-from-scrap refiner, available early (Ground Zero)
   new TechTree.TechNode(drillNode, scrapCoalExtractor, ItemStack.with(Items.copper, 150, Items.lead, 100, Items.scrap, 75));
-  // liquid producers stack one chain under the next (water -> cryofluid -> slag),
+  // liquid producers stack one chain under the next (water -> cryofluid -> slag -> oil),
   // using the exact same inline milestone-loop pattern as the per-ore chains.
   let cur = drillNode;
   const wTitles = [
     ["Water Extraction Theory", "Condensation Cycles", "Atmospheric Capture Unit"],
     ["Cryofluid Chilling", "Cryo Bath Design", "Cryofluid Synthesis Unit"],
     ["Magma Channeling", "Crucible Metallurgy", "Molten Slag Vessel"],
+    ["Hydrocarbon Cracking", "Petroleum Distillation", "Oil Refinery Unit"],
   ];
   const wNames = [["water-research-1", "water-research-2", "water-research-3"],
                   ["cryofluid-research-1", "cryofluid-research-2", "cryofluid-research-3"],
-                  ["slag-research-1", "slag-research-2", "slag-research-3"]];
-  const wCosts = [waterCosts, cryoCosts, slagCosts];
-  const wGens = [waterGen, cryofluidGen, slagGen];
-  const wDesc = ["Water Generator", "Cryofluid Generator", "Slag Generator"];
-  for (let c = 0; c < 3; c++) {
+                  ["slag-research-1", "slag-research-2", "slag-research-3"],
+                  ["oil-research-1", "oil-research-2", "oil-research-3"]];
+  const wCosts = [waterCosts, cryoCosts, slagCosts, oilCosts];
+  const wGens = [waterGen, cryofluidGen, slagGen, oilGen];
+  const wDesc = ["Water Generator", "Cryofluid Generator", "Slag Generator", "Oil Generator"];
+  for (let c = 0; c < 4; c++) {
     for (let s = 0; s < 3; s++) {
       const made = makeMilestone(wNames[c][s], wTitles[c][s], "Research milestone for the " + wDesc[c] + ". (Step " + (s + 1) + " of 3).", cur, wCosts[c][s]);
       oreMilestoneBlocks.push(made.block);
@@ -955,13 +1030,13 @@ function applyUpgrades() {
     if (isResearched(efficiencyUpgrades[i])) efficiencyLevel++;
   }
   const speedMult = Math.pow(speedStep, speedLevel);
-  const capacityBoost = capacityStep * capacityLevel;
+  const capacityMult = Math.pow(capacityStep, capacityLevel);
   const outputMult = Math.pow(outputStep, outputLevel);
   const powerMult = Math.pow(efficiencyStep, efficiencyLevel);
   for (let i = 0; i < allGenerators.length; i++) {
     const b = allGenerators[i];
     b.craftTime = baseCraftTime[b.name] * speedMult;
-    b.itemCapacity = baseCapacity[b.name] + capacityBoost;
+    b.itemCapacity = Math.floor(baseCapacity[b.name] * capacityMult);
     if (baseOutput[b.name] != null) {
       b.outputItem.amount = baseOutput[b.name] * outputMult;
     }

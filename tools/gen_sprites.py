@@ -258,6 +258,7 @@ LIQUID = {
     "ozone":     dict(frame=("#4a4a9a", "#1e1e4a"), panel=("#1a1a38", "#0e0e1f"), gem=("#c8b8ff", "#5a54a0"), accent="#8a80ff", liquid="#b8a8ff"),
     "cryofluid": dict(frame=("#2a7a7a", "#103438"), panel=("#123034", "#091c1e"), gem=("#a8f4ff", "#3aa0aa"), accent="#44e0e8", liquid="#9ff0f8"),
     "slag":      dict(frame=("#7a3420", "#381408"), panel=("#2a1208", "#180a04"), gem=("#ff9a3c", "#a84a14"), accent="#ff6a2a", liquid="#ff7a2a", crack="#ff6a2a", flame="#ffb03c"),
+    "oil":       dict(frame=("#6a4a20", "#2e2008"), panel=("#2a1e0c", "#161008"), gem=("#e8a830", "#8a5a10"), accent="#d09020", liquid="#c89020"),
     "gallium":   dict(frame=("#8a94a8", "#3a4050"), panel=("#262c38", "#141820"), gem=("#f0f4ff", "#8a94a8"), accent="#c8d4e8", liquid="#d8e4f8", crack="#c8d4e8", flame="#e8f0ff"),
 }
 
@@ -362,7 +363,7 @@ if __name__ == "__main__":
 
     print("Liquid generators (3x3, 96px):")
     for lid, th in LIQUID.items():
-        variant = "water" if lid in ("water", "ozone") else ("cryo" if lid == "cryofluid" else "magma")
+        variant = "water" if lid in ("water", "ozone", "oil") else ("cryo" if lid == "cryofluid" else "magma")
         save_block(lid + "-gen", 96, th, variant)
         for s in ("", "-glow", "-spin", "-spin-blur"):
             note(f"{lid}-gen{s}.png")
