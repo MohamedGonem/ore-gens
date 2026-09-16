@@ -3,6 +3,8 @@
 // Items, Liquids, ItemStack, LiquidStack, Category, BuildVisibility, Planets,
 // Blocks, TechTree, GenericCrafter, Sounds and Fx are engine globals.
 
+var OregensSettings = require("settings").OregensSettings;
+
 const oreDefs = [
   { id: "copper",   name: "Copper",   item: Items.copper,   powered: { craftTime: 60, power: 0.05,   req: [[Items.copper, 80], [Items.lead, 40]] },
     unpowered: { craftTime: 150, req: [[Items.copper, 180], [Items.lead, 90], [Items.graphite, 30]] },
@@ -65,7 +67,8 @@ const tierSupplement = [
 ];
 
 function enrichedReq(req, tier) {
-  return req.concat(tierSupplement[tier]);
+  var sup = tierSupplement[tier];
+  return OregensSettings.applyCostMultiplier(sup != null ? req.concat(sup) : req);
 }// Unique per-ore extraction flavor: every ore uses a different real-world-inspired
 // process so no two generators behave the same on paper.
 const flavor = {
@@ -208,7 +211,7 @@ function makeRandomCrafter(name, craftTime, size, req, power, consumeItems, loca
   }
   const block = extend(GenericCrafter, name, {});
   block.outputItems = stacks;
-  block.requirements = makeRequirements(req);
+  block.requirements = makeRequirements(OregensSettings.applyCostMultiplier(req));
   block.craftTime = craftTime;
   block.size = size;
   block.category = Category.production;
@@ -319,12 +322,17 @@ function buildChain(ore, liquidTier, magmaTier, planet) {
       f.cryo + "\n" +
       "The fastest generator type. Needs power and cryofluid.", "cryo", planet, { item: new ItemStack(ore.item, 1) }),
     magma: makeCrafter(ore.id + "-gen-magma",
-      ore.magma.craftTime, 4, ore.magma.req, ore.magma.power,
+      ore.magma.craftTime, 4, enrichedReq(ore.magma.req, 4), ore.magma.power,
       [{ liquid: magmaTier, amount: ore.magma.liquid[0] }, { liquid: Liquids.cryofluid, amount: ore.magma.liquid[1] }], null,
       ore.name + " Magma Generator",
       f.magma + "\n" +
       "The ultimate generator. Consumes " + magmaTier.name + " and cryofluid with power for maximum output.", "magma", planet, { item: new ItemStack(ore.item, 1) }, 60),
   };
+  OregensSettings.applyGating(chain.powered, 1, ore.id, "ore");
+  OregensSettings.applyGating(chain.unpowered, 2, ore.id, "ore");
+  OregensSettings.applyGating(chain.water, 3, ore.id, "ore");
+  OregensSettings.applyGating(chain.cryo, 4, ore.id, "ore");
+  OregensSettings.applyGating(chain.magma, 5, ore.id, "ore");
   chains.push(chain);
   allGenerators.push(chain.powered, chain.unpowered, chain.water, chain.cryo, chain.magma);
 }
@@ -340,7 +348,7 @@ for (let i = 0; i < erekirOreDefs.length; i++) {
 }// ---- liquid-producing generators (self-contained resource generation) ----
 // 3x3 on both planets: a clear upgrade over the vanilla 2x2 water/ozone generators.
 function makeLiquidProducer(name, title, desc, liquidOut, outAmount, craftTime, size, req, power, liquid, consumeItems, planet, style) {
-  const b = makeCrafter(name, craftTime, size, req, power, liquid, consumeItems,
+  const b = makeCrafter(name, craftTime, size, OregensSettings.applyCostMultiplier(req), power, liquid, consumeItems,
     title, desc, style, planet,
     { liquid: new LiquidStack(liquidOut, outAmount) }, 40);
   return b;
@@ -398,12 +406,19 @@ const galliumGen = makeLiquidProducer("gallium-gen", "Gallium Generator",
   0.2, { liquid: Liquids.ozone, amount: 1 }, [[Items.tungsten, 1]], Planets.erekir, "magma");
 
 allGenerators.push(waterGen, cryofluidGen, slagGen, oilGen, ozoneGen, cryofluidGenErekir, galliumGen);
+OregensSettings.applyGating(waterGen, 0, "water", "liquid");
+OregensSettings.applyGating(cryofluidGen, 0, "cryofluid", "liquid");
+OregensSettings.applyGating(slagGen, 0, "slag", "liquid");
+OregensSettings.applyGating(oilGen, 0, "oil", "liquid");
+OregensSettings.applyGating(ozoneGen, 0, "ozone", "liquid");
+OregensSettings.applyGating(cryofluidGenErekir, 0, "cryofluid", "liquid");
+OregensSettings.applyGating(galliumGen, 0, "gallium", "liquid");
 
 // crafter with a per-cycle chance to yield a single output (scrap coal extractor).
 function makeChanceCrafter(name, craftTime, size, req, consumeItems, chance, outItem, outAmount, localizedName, description, planet, style) {
   const block = extend(GenericCrafter, name, {});
   block.outputItem = new ItemStack(outItem, outAmount);
-  block.requirements = makeRequirements(req);
+  block.requirements = makeRequirements(OregensSettings.applyCostMultiplier(req));
   block.craftTime = craftTime;
   block.size = size;
   block.category = Category.production;
@@ -486,6 +501,9 @@ const advancedSynth = makeRandomCrafter("advanced-synthesizer", 140, 4,
   ], 80);
 
 allGenerators.push(basicSynth, refinedSynth, advancedSynth);
+OregensSettings.applyGating(basicSynth, 0, "basicSynthesizer", "craftable");
+OregensSettings.applyGating(refinedSynth, 0, "refinedSynthesizer", "craftable");
+OregensSettings.applyGating(advancedSynth, 0, "advancedSynthesizer", "craftable");
 
 // cheap coal-from-scrap refiner (Serpulo only): no graphite, no power, works on Ground Zero.
 // Each 1 scrap has a 5% chance to yield coal.
@@ -497,6 +515,85 @@ const scrapCoalExtractor = makeChanceCrafter("scrap-coal-extractor", 0.5, 2,
   "Consumes 1 scrap per cycle; each scrap has a 5% chance to yield 1 coal. No power and no graphite required — usable on Ground Zero.",
   Planets.serpulo, "unpowered");
 allGenerators.push(scrapCoalExtractor);
+OregensSettings.applyGating(scrapCoalExtractor, 0, "scrapCoalExtractor", "craftable");
+
+// ---- power-only crafting generators (4x4, Serpulo) ----
+// Produce crafted items consuming only power.  Gated behind the highest-tier
+// vanilla factory and the water-tier ore generator of the primary ingredient.
+function makePowerCrafter(name, craftTime, req, outItem, outAmount, power, localizedName, description, capacity) {
+  return makeCrafter(name, craftTime, 4, OregensSettings.applyCostMultiplier(req), power, null, null,
+    localizedName, description, "powered", Planets.serpulo,
+    { item: new ItemStack(outItem, outAmount) }, capacity || 60);
+}
+
+const graphitePressGen = makePowerCrafter("graphite-press-gen", 90,
+  [[Items.copper, 800], [Items.lead, 500], [Items.graphite, 200], [Items.silicon, 150]],
+  Items.graphite, 1, 0.025,
+  "Graphite Generator",
+  "High-pressure thermal compression of airborne carbon into dense graphite.\n" +
+  "Produces graphite from power alone. Requires multi-press and coal generator.");
+
+const siliconSmelterGen = makePowerCrafter("silicon-smelter-gen", 80,
+  [[Items.copper, 1000], [Items.lead, 700], [Items.graphite, 300], [Items.silicon, 250], [Items.titanium, 100]],
+  Items.silicon, 1, 0.033,
+  "Silicon Generator",
+  "Electric arc reduction of silicate dust into purified silicon wafers.\n" +
+  "Produces silicon from power alone. Requires silicon crucible and sand generator.");
+
+const metaglassGen = makePowerCrafter("metaglass-gen", 60,
+  [[Items.copper, 800], [Items.lead, 500], [Items.graphite, 200], [Items.silicon, 150]],
+  Items.metaglass, 1, 0.03,
+  "Metaglass Generator",
+  "Molten glass synthesis from airborne silicate and metal fumes.\n" +
+  "Produces metaglass from power alone. Requires kiln and lead generator.");
+
+const plastaniumGen = makePowerCrafter("plastanium-gen", 90,
+  [[Items.copper, 2000], [Items.lead, 1500], [Items.titanium, 800], [Items.silicon, 500], [Items.plastanium, 300]],
+  Items.plastanium, 1, 0.083,
+  "Plastanium Generator",
+  "Plasma-infused titanium compaction into lightweight plastanium sheets.\n" +
+  "Produces plastanium from power alone. Requires plastanium compressor and titanium generator.");
+
+const phaseFabricGen = makePowerCrafter("phase-fabric-gen", 120,
+  [[Items.copper, 2000], [Items.lead, 1500], [Items.thorium, 500], [Items.silicon, 500], [Items.phaseFabric, 300]],
+  Items.phaseFabric, 1, 0.1,
+  "Phase Fabric Generator",
+  "Irradiated thorium weave into phase-shifting fabric sheets.\n" +
+  "Produces phase fabric from power alone. Requires phase weaver and thorium generator.");
+
+const pyratiteGen = makePowerCrafter("pyratite-gen", 80,
+  [[Items.copper, 800], [Items.lead, 500], [Items.graphite, 200], [Items.silicon, 150]],
+  Items.pyratite, 1, 0.025,
+  "Pyratite Generator",
+  "Exothermic catalysis of airborne phosphite compounds into volatile pyratite.\n" +
+  "Produces pyratite from power alone. Requires pyratite mixer and coal generator.");
+
+const blastCompoundGen = makePowerCrafter("blast-compound-gen", 80,
+  [[Items.copper, 1000], [Items.lead, 700], [Items.graphite, 300], [Items.silicon, 250], [Items.titanium, 100]],
+  Items.blastCompound, 1, 0.033,
+  "Blast Compound Generator",
+  "Stable detonation compound synthesis from atmospheric precursors.\n" +
+  "Produces blast compound from power alone. Requires blast mixer and coal generator.");
+
+const surgeAlloyGen = makePowerCrafter("surge-alloy-gen", 100,
+  [[Items.copper, 2000], [Items.lead, 1500], [Items.titanium, 800], [Items.silicon, 500], [Items.phaseFabric, 300]],
+  Items.surgeAlloy, 1, 0.1,
+  "Surge Alloy Generator",
+  "Multi-metal plasma fusion into surge-alloy ingots.\n" +
+  "Produces surge alloy from power alone. Requires alloy smelter and copper generator.");
+
+allGenerators.push(
+  graphitePressGen, siliconSmelterGen, metaglassGen, plastaniumGen,
+  phaseFabricGen, pyratiteGen, blastCompoundGen, surgeAlloyGen
+);
+OregensSettings.applyGating(graphitePressGen, 0, "graphite", "craftable");
+OregensSettings.applyGating(siliconSmelterGen, 0, "silicon", "craftable");
+OregensSettings.applyGating(metaglassGen, 0, "metaglass", "craftable");
+OregensSettings.applyGating(plastaniumGen, 0, "plastanium", "craftable");
+OregensSettings.applyGating(phaseFabricGen, 0, "phaseFabric", "craftable");
+OregensSettings.applyGating(pyratiteGen, 0, "pyratite", "craftable");
+OregensSettings.applyGating(blastCompoundGen, 0, "blastCompound", "craftable");
+OregensSettings.applyGating(surgeAlloyGen, 0, "surgeAlloy", "craftable");
 
 // record base stats so upgrades can recompute from them
 const baseCraftTime = {};
@@ -587,7 +684,8 @@ function makeMilestone(name, title, description, parent, cost) {
 function makeUpgradePairChain(parent, gates, ups, gateCosts, upCosts) {
   let cur = parent;
   const nodes = [];
-  for (let i = 0; i < ups.length; i++) {
+  var len = Math.min(ups.length, gateCosts.length, upCosts.length);
+  for (let i = 0; i < len; i++) {
     cur = new TechTree.TechNode(cur, gates[i], gateCosts[i]);
     cur = new TechTree.TechNode(cur, ups[i], upCosts[i]);
     nodes.push(cur);
@@ -689,13 +787,44 @@ capacityUpgrades.push.apply(capacityUpgrades, capLine.ups);
 outputUpgrades.push.apply(outputUpgrades, outLine.ups);
 efficiencyUpgrades.push.apply(efficiencyUpgrades, effLine.ups);
 
+// Hide upgrade gates and blocks beyond maxUpgradeLevel so they don't
+// appear in the tech tree or break saved maps.
+var _maxUpg = OregensSettings.getMaxUpgradeLevel();
+function hideBeyondMax(line) {
+  for (var i = _maxUpg; i < 10; i++) {
+    line.gates[i].buildVisibility = BuildVisibility.hidden;
+    line.gates[i].craftTime = 999999;
+    line.ups[i].buildVisibility = BuildVisibility.hidden;
+    line.ups[i].craftTime = 999999;
+  }
+}
+hideBeyondMax(speedLine);
+hideBeyondMax(capLine);
+hideBeyondMax(outLine);
+hideBeyondMax(effLine);
+
+// Hide all blocks for disabled upgrade types entirely.
+function hideUpgradeLine(line) {
+  for (var i = 0; i < 10; i++) {
+    line.gates[i].buildVisibility = BuildVisibility.hidden;
+    line.gates[i].craftTime = 999999;
+    line.ups[i].buildVisibility = BuildVisibility.hidden;
+    line.ups[i].craftTime = 999999;
+  }
+}
+if (!OregensSettings.isUpgradeEnabled("speed")) hideUpgradeLine(speedLine);
+if (!OregensSettings.isUpgradeEnabled("capacity")) hideUpgradeLine(capLine);
+if (!OregensSettings.isUpgradeEnabled("output")) hideUpgradeLine(outLine);
+if (!OregensSettings.isUpgradeEnabled("efficiency")) hideUpgradeLine(effLine);
+
 // link each line into a planet tree, interleaving gate and upgrade:
 // parent -> gate1 -> upgrade1 -> gate2 -> upgrade2 -> ... -> gate10 -> upgrade10
 // returns the array of upgrade tech nodes (index i = upgrade i).
 function linkUpgradeLine(root, line) {
+  var maxLevel = OregensSettings.getMaxUpgradeLevel();
   const gateCosts = [];
   const upCosts = [];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < maxLevel; i++) {
     gateCosts.push(upgradeCost(i + 1));
     upCosts.push(upgradeCost(i + 1));
   }
@@ -753,14 +882,19 @@ function milestoneCost(ore, tierIndex, stepIndex) {
 
 const oreMilestoneBlocks = [];
 // attach research gates per ore chain, before the tier unlocks
+// Track water-gen tech nodes so crafting blocks can chain after them.
+const waterGenNodes = {};
+if (OregensSettings.isResearchEnabled()) {
 if (drillNode != null) {
   for (let i = 0; i < chains.length; i++) {
     const c = chains[i];
     if (!c.powered.shownPlanets.contains(Planets.serpulo)) continue;
+    if (!OregensSettings.isEnabled(c.id)) continue;
     const f = flavor[c.id];
     const tiers = [c.powered, c.unpowered, c.water, c.cryo, c.magma];
     let cur = drillNode;
-    for (let t = 0; t < 5; t++) {
+    var maxT = OregensSettings.getMaxTier();
+    for (let t = 0; t < 5 && t < maxT; t++) {
       for (let s = 0; s < 3; s++) {
         const title = c.name + " Generator: " + milestoneTitles[t][s];
         const desc = "Research milestone for the " + tierNames[t] + " " + c.name.toLowerCase() + " generator.\n" +
@@ -772,6 +906,8 @@ if (drillNode != null) {
       }
       const tierNode = new TechTree.TechNode(cur, tiers[t], tiers[t].researchRequirements());
       cur = tierNode;
+      // Save the water-tier (index 2) node for each Serpulo ore.
+      if (t === 2) waterGenNodes[c.id] = tierNode;
     }
   }
 } else {
@@ -782,10 +918,12 @@ if (erekirNode != null) {
   for (let i = 0; i < chains.length; i++) {
     const c = chains[i];
     if (!c.powered.shownPlanets.contains(Planets.erekir)) continue;
+    if (!OregensSettings.isEnabled(c.id)) continue;
     const f = flavor[c.id];
     const tiers = [c.powered, c.unpowered, c.water, c.cryo, c.magma];
     let cur = erekirNode;
-    for (let t = 0; t < 5; t++) {
+    var maxT = OregensSettings.getMaxTier();
+    for (let t = 0; t < 5 && t < maxT; t++) {
       for (let s = 0; s < 3; s++) {
         const title = c.name + " Generator: " + milestoneTitles[t][s];
         const desc = "Research milestone for the " + tierNames[t] + " " + c.name.toLowerCase() + " generator.\n" +
@@ -802,6 +940,7 @@ if (erekirNode != null) {
 } else {
   Log.err("ore-gens: could not find plasmaBore tech node; Erekir research not attached.");
 }
+} // end isResearchEnabled
 
 // ---- liquid generator research chains ----
 // Milestone chains are built inline (module scope) exactly like the per-ore
@@ -854,9 +993,12 @@ const galliumCosts = [
   ItemStack.with(Items.thorium, 1100, Items.tungsten, 1100, Items.phaseFabric, 320, Items.silicon, 1100, Items.surgeAlloy, 180),
 ];
 
+if (OregensSettings.isResearchEnabled()) {
 if (drillNode != null) {
   // cheap coal-from-scrap refiner, available early (Ground Zero)
-  new TechTree.TechNode(drillNode, scrapCoalExtractor, ItemStack.with(Items.copper, 150, Items.lead, 100, Items.scrap, 75));
+  if (OregensSettings.isEnabled("scrap")) {
+    new TechTree.TechNode(drillNode, scrapCoalExtractor, ItemStack.with(Items.copper, 150, Items.lead, 100, Items.scrap, 75));
+  }
   // liquid producers stack one chain under the next (water -> cryofluid -> slag -> oil),
   // using the exact same inline milestone-loop pattern as the per-ore chains.
   let cur = drillNode;
@@ -872,8 +1014,10 @@ if (drillNode != null) {
                   ["oil-research-1", "oil-research-2", "oil-research-3"]];
   const wCosts = [waterCosts, cryoCosts, slagCosts, oilCosts];
   const wGens = [waterGen, cryofluidGen, slagGen, oilGen];
+  const wLiqIds = ["water", "cryofluid", "slag", "oil"];
   const wDesc = ["Water Generator", "Cryofluid Generator", "Slag Generator", "Oil Generator"];
   for (let c = 0; c < 4; c++) {
+    if (!OregensSettings.isLiquidEnabled(wLiqIds[c])) continue;
     for (let s = 0; s < 3; s++) {
       const made = makeMilestone(wNames[c][s], wTitles[c][s], "Research milestone for the " + wDesc[c] + ". (Step " + (s + 1) + " of 3).", cur, wCosts[c][s]);
       oreMilestoneBlocks.push(made.block);
@@ -910,8 +1054,71 @@ if (drillNode != null) {
     }
     s = new TechTree.TechNode(s, sGens[c], sGens[c].researchRequirements());
   }
-}
 
+  // ---- crafting generators research chains ----
+  // Each chains after the water-tier node of its primary ore: 3 milestones + block.
+  const craftDefs = [
+    { id: "graphite",  block: graphitePressGen,    ore: "coal",     name: "Graphite Generator",
+      titles: ["Carbon Compression Theory", "Thermal Densification", "Graphite Press Unit"],
+      costs: [ItemStack.with(Items.coal, 500, Items.graphite, 300, Items.silicon, 200),
+              ItemStack.with(Items.coal, 800, Items.graphite, 500, Items.silicon, 350, Items.titanium, 100),
+              ItemStack.with(Items.coal, 1200, Items.graphite, 800, Items.silicon, 500, Items.titanium, 200, Items.plastanium, 80)] },
+    { id: "silicon",   block: siliconSmelterGen,   ore: "sand",     name: "Silicon Generator",
+      titles: ["Silicate Arc Theory", "Wafer Reduction", "Silicon Crucible Unit"],
+      costs: [ItemStack.with(Items.sand, 500, Items.coal, 300, Items.silicon, 200),
+              ItemStack.with(Items.sand, 800, Items.coal, 500, Items.silicon, 350, Items.titanium, 100),
+              ItemStack.with(Items.sand, 1200, Items.coal, 800, Items.silicon, 500, Items.titanium, 200, Items.plastanium, 80)] },
+    { id: "metaglass",  block: metaglassGen,       ore: "lead",     name: "Metaglass Generator",
+      titles: ["Molten Glass Theory", "Silicate Fusion", "Kiln Synthesis Unit"],
+      costs: [ItemStack.with(Items.lead, 500, Items.sand, 300, Items.silicon, 200),
+              ItemStack.with(Items.lead, 800, Items.sand, 500, Items.silicon, 350, Items.titanium, 100),
+              ItemStack.with(Items.lead, 1200, Items.sand, 800, Items.silicon, 500, Items.titanium, 200, Items.plastanium, 80)] },
+    { id: "plastanium", block: plastaniumGen,      ore: "titanium", name: "Plastanium Generator",
+      titles: ["Plasma Compaction Theory", "Titanium Infusion", "Plastanium Compressor Unit"],
+      costs: [ItemStack.with(Items.titanium, 600, Items.silicon, 300, Items.coal, 200),
+              ItemStack.with(Items.titanium, 1000, Items.silicon, 500, Items.coal, 400, Items.plastanium, 100),
+              ItemStack.with(Items.titanium, 1500, Items.silicon, 800, Items.coal, 600, Items.plastanium, 200, Items.phaseFabric, 80)] },
+    { id: "phase",     block: phaseFabricGen,      ore: "thorium",  name: "Phase Fabric Generator",
+      titles: ["Irradiated Weave Theory", "Phase-Shift Synthesis", "Phase Weaver Unit"],
+      costs: [ItemStack.with(Items.thorium, 600, Items.sand, 300, Items.silicon, 200),
+              ItemStack.with(Items.thorium, 1000, Items.sand, 500, Items.silicon, 350, Items.phaseFabric, 100),
+              ItemStack.with(Items.thorium, 1500, Items.sand, 800, Items.silicon, 500, Items.phaseFabric, 200, Items.surgeAlloy, 80)] },
+    { id: "pyratite",  block: pyratiteGen,         ore: "coal",     name: "Pyratite Generator",
+      titles: ["Exothermic Catalysis Theory", "Phosphite Synthesis", "Pyratite Mixer Unit"],
+      costs: [ItemStack.with(Items.coal, 500, Items.lead, 300, Items.sand, 200),
+              ItemStack.with(Items.coal, 800, Items.lead, 500, Items.sand, 350, Items.silicon, 100),
+              ItemStack.with(Items.coal, 1200, Items.lead, 800, Items.sand, 500, Items.silicon, 200, Items.titanium, 80)] },
+    { id: "blast",     block: blastCompoundGen,    ore: "coal",     name: "Blast Compound Generator",
+      titles: ["Detonate Synthesis Theory", "Stable Compound Fusion", "Blast Mixer Unit"],
+      costs: [ItemStack.with(Items.coal, 600, Items.pyratite, 300, Items.silicon, 200),
+              ItemStack.with(Items.coal, 1000, Items.pyratite, 500, Items.silicon, 350, Items.titanium, 100),
+              ItemStack.with(Items.coal, 1500, Items.pyratite, 800, Items.silicon, 500, Items.titanium, 200, Items.plastanium, 80)] },
+    { id: "alloy",     block: surgeAlloyGen,       ore: "copper",   name: "Surge Alloy Generator",
+      titles: ["Multi-Metal Fusion Theory", "Plasma Alloy Synthesis", "Alloy Smelter Unit"],
+      costs: [ItemStack.with(Items.copper, 600, Items.lead, 400, Items.titanium, 300, Items.silicon, 200),
+              ItemStack.with(Items.copper, 1000, Items.lead, 700, Items.titanium, 500, Items.silicon, 400, Items.plastanium, 100),
+              ItemStack.with(Items.copper, 1500, Items.lead, 1000, Items.titanium, 800, Items.silicon, 600, Items.plastanium, 200, Items.phaseFabric, 80)] },
+  ];
+  for (let i = 0; i < craftDefs.length; i++) {
+    const cd = craftDefs[i];
+    if (!OregensSettings.isItemEnabled(cd.id)) continue;
+    const parentNode = waterGenNodes[cd.ore];
+    if (parentNode == null) continue;
+    let cur = parentNode;
+    for (let s = 0; s < 3; s++) {
+      const made = makeMilestone("craft-" + cd.id + "-research-" + (s + 1),
+        cd.name + ": " + cd.titles[s],
+        "Research milestone for the " + cd.name + ". (Step " + (s + 1) + " of 3).",
+        cur, cd.costs[s]);
+      oreMilestoneBlocks.push(made.block);
+      cur = made.node;
+    }
+    new TechTree.TechNode(cur, cd.block, cd.block.researchRequirements());
+  }
+}
+} // end isResearchEnabled (Serpulo liquid/craft)
+
+if (OregensSettings.isResearchEnabled()) {
 if (erekirNode != null) {
   // same stacking as Serpulo: ozone -> cryofluid -> gallium, inline milestone loop.
   let cur = erekirNode;
@@ -925,8 +1132,10 @@ if (erekirNode != null) {
                   ["gallium-research-1", "gallium-research-2", "gallium-research-3"]];
   const eCosts = [ozoneCosts, erekirCryoCosts, galliumCosts];
   const eGens = [ozoneGen, cryofluidGenErekir, galliumGen];
+  const eLiqIds = ["ozone", "cryofluid", "gallium"];
   const eDesc = ["Ozone Generator", "Cryofluid Generator", "Gallium Generator"];
   for (let c = 0; c < 3; c++) {
+    if (!OregensSettings.isLiquidEnabled(eLiqIds[c])) continue;
     for (let i = 0; i < 3; i++) {
       const made = makeMilestone(eNames[c][i], eTitles[c][i], "Research milestone for the " + eDesc[c] + ". (Step " + (i + 1) + " of 3).", cur, eCosts[c][i]);
       oreMilestoneBlocks.push(made.block);
@@ -935,22 +1144,25 @@ if (erekirNode != null) {
     cur = new TechTree.TechNode(cur, eGens[c], eGens[c].researchRequirements());
   }
 }
+} // end isResearchEnabled (Erekir liquid)
 
 // ---- upgrade research gates ----
-// Each line is linked into both planet trees; Output hangs off Speed I,
-// Efficiency off Speed X.
+// Each upgrade type roots directly from pneumatic drill / plasma bore.
+// Gated by per-type settings; Output requires Capacity enabled.
+if (OregensSettings.isResearchEnabled()) {
 if (drillNode != null) {
-  const speedNodes = linkUpgradeLine(drillNode, speedLine);
-  linkUpgradeLine(drillNode, capLine);
-  linkUpgradeLine(speedNodes[0], outLine);
-  linkUpgradeLine(speedNodes[speedLine.ups.length - 1], effLine);
+  if (OregensSettings.isUpgradeEnabled("speed")) linkUpgradeLine(drillNode, speedLine);
+  if (OregensSettings.isUpgradeEnabled("capacity")) linkUpgradeLine(drillNode, capLine);
+  if (OregensSettings.isUpgradeEnabled("output")) linkUpgradeLine(drillNode, outLine);
+  if (OregensSettings.isUpgradeEnabled("efficiency")) linkUpgradeLine(drillNode, effLine);
 }
 if (erekirNode != null) {
-  const speedNodes = linkUpgradeLine(erekirNode, speedLine);
-  linkUpgradeLine(erekirNode, capLine);
-  linkUpgradeLine(speedNodes[0], outLine);
-  linkUpgradeLine(speedNodes[speedLine.ups.length - 1], effLine);
+  if (OregensSettings.isUpgradeEnabled("speed")) linkUpgradeLine(erekirNode, speedLine);
+  if (OregensSettings.isUpgradeEnabled("capacity")) linkUpgradeLine(erekirNode, capLine);
+  if (OregensSettings.isUpgradeEnabled("output")) linkUpgradeLine(erekirNode, outLine);
+  if (OregensSettings.isUpgradeEnabled("efficiency")) linkUpgradeLine(erekirNode, effLine);
 }
+} // end isResearchEnabled (upgrades)
 
 // recompute stats from base values; idempotent, safe to call on load and on research
 function applyUpgrades() {
@@ -959,21 +1171,30 @@ function applyUpgrades() {
   function isResearched(block) {
     return Core.settings.getBool(block.name + "-unlocked", false);
   }
+  var maxLevel = OregensSettings.getMaxUpgradeLevel();
   let speedLevel = 0;
-  for (let i = 0; i < speedUpgrades.length; i++) {
-    if (isResearched(speedUpgrades[i])) speedLevel++;
+  if (OregensSettings.isUpgradeEnabled("speed")) {
+    for (let i = 0; i < speedUpgrades.length && speedLevel < maxLevel; i++) {
+      if (isResearched(speedUpgrades[i])) speedLevel++;
+    }
   }
   let capacityLevel = 0;
-  for (let i = 0; i < capacityUpgrades.length; i++) {
-    if (isResearched(capacityUpgrades[i])) capacityLevel++;
+  if (OregensSettings.isUpgradeEnabled("capacity")) {
+    for (let i = 0; i < capacityUpgrades.length && capacityLevel < maxLevel; i++) {
+      if (isResearched(capacityUpgrades[i])) capacityLevel++;
+    }
   }
   let outputLevel = 0;
-  for (let i = 0; i < outputUpgrades.length; i++) {
-    if (isResearched(outputUpgrades[i])) outputLevel++;
+  if (OregensSettings.isUpgradeEnabled("output")) {
+    for (let i = 0; i < outputUpgrades.length && outputLevel < maxLevel; i++) {
+      if (isResearched(outputUpgrades[i])) outputLevel++;
+    }
   }
   let efficiencyLevel = 0;
-  for (let i = 0; i < efficiencyUpgrades.length; i++) {
-    if (isResearched(efficiencyUpgrades[i])) efficiencyLevel++;
+  if (OregensSettings.isUpgradeEnabled("efficiency")) {
+    for (let i = 0; i < efficiencyUpgrades.length && efficiencyLevel < maxLevel; i++) {
+      if (isResearched(efficiencyUpgrades[i])) efficiencyLevel++;
+    }
   }
   const speedMult = Math.pow(speedStep, speedLevel);
   const capacityMult = Math.pow(capacityStep, capacityLevel);

@@ -186,6 +186,26 @@ def build_generator(size, theme, variant="powered"):
             gy = cy + np.sin(a) * gem_r * 0.62
             draw_diamond(base, gx, gy, gem_r * 0.55, gem_l, gem_d, alpha=230)
         draw_diamond(base, cx, cy, gem_r * 0.7, tuple(min(int(a * 1.2), 255) for a in gem_l), gem_d)
+    elif variant == "crafting":
+        # gear/cog ring around center gem to hint power-driven crafting
+        draw_diamond(base, cx, cy, gem_r, gem_l, gem_d)
+        n_teeth = 8
+        R_outer = gem_r * 1.6
+        R_inner = gem_r * 1.3
+        for i in range(n_teeth):
+            a0 = i * 2 * np.pi / n_teeth
+            a1 = a0 + np.pi / n_teeth * 0.6
+            for a_step in np.linspace(a0, a1, 4):
+                x0 = int(cx + np.cos(a_step) * R_inner)
+                y0 = int(cy + np.sin(a_step) * R_inner)
+                x1 = int(cx + np.cos(a_step) * R_outer)
+                y1 = int(cy + np.sin(a_step) * R_outer)
+                draw_line(base, x0, y0, x1, y1, accent, w=1, alpha=200)
+            # tooth tip
+            a_mid = (a0 + a1) / 2
+            tx = int(cx + np.cos(a_mid) * R_outer)
+            ty = int(cy + np.sin(a_mid) * R_outer)
+            draw_circle(base, tx, ty, max(2, int(size * 0.03)), accent, alpha=180)
     else:
         # powered / icon / research: plain bright gem
         draw_diamond(base, cx, cy, gem_r, gem_l, gem_d)
@@ -266,6 +286,17 @@ SYNTH = {
     "basic":    dict(frame=("#8a6a3a", "#3a2c14"), panel=("#2e2412", "#191206"), gem=("#f0d050", "#9a7a2a"), accent="#e8b040"),
     "refined":  dict(frame=("#7a8290", "#2e333c"), panel=("#242830", "#121418"), gem=("#e8f0ff", "#7d8aa0"), accent="#9fb2d8"),
     "advanced": dict(frame=("#3a5a7a", "#16263a"), panel=("#16202e", "#0c1118"), gem=("#7dff9a", "#2f7d4a"), accent="#7dff9a"),
+}
+
+CRAFTING = {
+    "graphite":   dict(frame=("#4a4a52", "#26262b"), panel=("#222226", "#141417"), gem=("#e8e4d8", "#7a7a70"), accent="#88909a"),
+    "silicon":    dict(frame=("#5a6a8a", "#262f42"), panel=("#1f2634", "#12141d"), gem=("#d8e0ff", "#6a76a0"), accent="#c0ccf0"),
+    "metaglass":  dict(frame=("#7a8290", "#3a3f4a"), panel=("#2a2e36", "#181b20"), gem=("#c8d0e0", "#6a7488"), accent="#a0b0c8"),
+    "plastanium": dict(frame=("#4a8a6a", "#1f3d2e"), panel=("#1a2e22", "#0e1913"), gem=("#a8ffc0", "#3a8a56"), accent="#8dffa8"),
+    "phase":      dict(frame=("#8a5a7a", "#402a3a"), panel=("#301f30", "#191019"), gem=("#d89aff", "#7a4a9a"), accent="#c080e0"),
+    "pyratite":   dict(frame=("#9a5a20", "#4a2808"), panel=("#3a2008", "#201004"), gem=("#ffc040", "#a86a10"), accent="#ff9020"),
+    "blast":      dict(frame=("#7a3030", "#381414"), panel=("#2a1010", "#180808"), gem=("#ff8080", "#a83030"), accent="#ff5050"),
+    "alloy":      dict(frame=("#8a7a50", "#3a3420"), panel=("#2e2818", "#1a1610"), gem=("#f0e8c0", "#8a8060"), accent="#d0c890"),
 }
 
 UPGRADE = {
@@ -377,6 +408,24 @@ if __name__ == "__main__":
         for s in ("", "-glow", "-spin", "-spin-blur"):
             note(f"{sid}-synthesizer{s}.png")
 
+    print("Crafting generators (4x4, 128px):")
+    CRAFT_NAMES = {
+        "graphite": "graphite-press-gen",
+        "silicon": "silicon-smelter-gen",
+        "metaglass": "metaglass-gen",
+        "plastanium": "plastanium-gen",
+        "phase": "phase-fabric-gen",
+        "pyratite": "pyratite-gen",
+        "blast": "blast-compound-gen",
+        "alloy": "surge-alloy-gen",
+    }
+    for cid, th in CRAFTING.items():
+        save_block(CRAFT_NAMES[cid], 128, th, "crafting")
+        for s in ("", "-glow", "-spin", "-spin-blur"):
+            note(f"{CRAFT_NAMES[cid]}{s}.png")
+
+    print("Crafting research milestones:")
+
     print("Upgrade icons 1-10:")
     for line in ("speed", "capacity", "output", "efficiency"):
         for i in range(1, 11):
@@ -410,5 +459,11 @@ if __name__ == "__main__":
         for s in (1, 2, 3):
             research_icon(f"synthesizer-research-{i}-{s}", th)
             note(f"synthesizer-research-{i}-{s}.png")
+
+    print("Research milestones (crafting gens):")
+    for cid, th in CRAFTING.items():
+        for s in (1, 2, 3):
+            research_icon(f"craft-{cid}-research-{s}", th)
+            note(f"craft-{cid}-research-{s}.png")
 
     print(f"\nTotal generated: {len(generated)}")
